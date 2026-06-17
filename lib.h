@@ -59,7 +59,33 @@ struct Operativo{
     ColaArsenal municiones;
 };
 
+void liberarPilaDefensa(PilaDefensa& pila) {
+    NodoEscudo* actual = pila.tope;
+    while (actual != nullptr) {
+        NodoEscudo* siguiente = actual->siguiente;
+        delete actual;
+        actual = siguiente;
+    }
+    pila.tope = nullptr;
+}
 
+void liberarColaArsenal(ColaArsenal& cola) {
+    NodoBlast* actual = cola.frente;
+    while (actual != nullptr) {
+        NodoBlast* siguiente = actual->siguiente;
+        delete actual;
+        actual = siguiente;
+    }
+    cola.frente = nullptr;
+    cola.final = nullptr;
+}
+
+void destruirOperativo(Operativo* op) {
+    if (op == nullptr) return;
+    liberarPilaDefensa(op->escudos);
+    liberarColaArsenal(op->municiones);
+    delete op;
+}
 
 /* FUNCIONES DE GESTIÓN */
 
@@ -98,7 +124,7 @@ void inspeccionarSuministrosporID(Operativo* op) {
         cout << "[" << tempE->salud << " HP] -> ";
         tempE = tempE->siguiente;
     }
-    cout << endl;
+    cout << "NULL" << endl;
 
     // se inspeccionan las colas de arsenal (FIFO)
     cout << "  Arsenal (Cola): ";
@@ -107,7 +133,7 @@ void inspeccionarSuministrosporID(Operativo* op) {
         cout << "[VACIO]";
     }
     while (tempB){
-        cout << "{Tipo " << nombreBlast(tempB->tipoBlast) << "} -> ";
+        cout << "{" << nombreBlast(tempB->tipoBlast) << "} -> ";
         tempB = tempB->siguiente;
     }
     cout << "FINAL" << endl;
@@ -158,43 +184,7 @@ Operativo* crearOperativo(int clase, int id, int bando){
     return nuevo;
 }
 
-/* PERSONAJES
-----------------------------------------------------------------------------------------
- tipo. personaje
-
-    1. Juggernaut (El Tanque): HP Base: 150. Arma Base: Daño 15. Nace con 3 Escudos
-        Físicos en su Pila.
-    2. Ejecutor (El Asesino): HP Base: 100. Arma Base: Daño 30. Nace con 1 Escudo
-        Anti-Plasma.
-    3. Espectro (El Hacker): HP Base: 60. Arma Base: Daño 10. Nace sin escudos. Única
-        clase capaz de encolar el ataque de Control Mental.
------------------------------------------------------------------------------------------
-*/
-
-/* HEROES UNICOS POR SU ID_CLAVE
-----------------------------------------------------------------------------------------
- tipo. personaje
-
-    1. Borin "Corazón de Bronce" (Neón): Clase Tanque. ID_Clave = 10. Nace con 2
-        Blasts de Racimo encolados.
-    2. Dra. Emily Carter (Neón): Clase Hacker. ID_Clave = 20. Nace con 3 Blasts
-        Troyanos.
-    3. Gnashrak "El Asediador" (OMEGA): Clase Asesino. ID_Clave = 990. Nace con
-        2 Blasts EMP y 1 Disrupción.
-    4. El Alfa / Paciente Cero (OMEGA): Clase Tanque. ID_Clave = 880. Nace con 1
-        Escudo Espejo y 3 Blasts de Racimo.
------------------------------------------------------------------------------------------
-*/
-
-/* equipos 
-
-(N)	La Resistencia Neón	- 1  
-
-(O)	La Corporación OMEGA - 2
-
-*/
-
-/* ESTRUCTURA BASICAS DE ARBOL B-TREE4 */
+/* ESTRUCTURA PRINCIPAL DE ARBOL B-TREE4 */
 
 struct NodoBTree4{
     Operativo* ocupantes[3]; 
@@ -209,7 +199,6 @@ struct NodoBTree4{
 struct ArbolB4{
     NodoBTree4* raiz = nullptr;
 };
-// para referenciar más rápido
 
 NodoBTree4* crearNodo(bool hoja){
     NodoBTree4* nuevoNodo = new NodoBTree4;
@@ -225,6 +214,28 @@ NodoBTree4* crearNodo(bool hoja){
     }
     
     return nuevoNodo;
+}
+
+/* MÁS LOGICA DE LIBERACIÓN: Destrucción completa del Árbol al cerrar el programa */
+void liberarArbolBinario(NodoBTree4* nodo) {
+    if (nodo == nullptr) return;
+
+    // 1. Destruir recursivamente a todos los hijos primero
+    if (!nodo->esHoja) {
+        for (int i = 0; i <= nodo->cantidad_actual; i++) {
+            liberarArbolBinario(nodo->hijos[i]);
+        }
+    }
+
+    // 2. Destruir eficientemente a los ocupantes de este nodo
+    for (int i = 0; i < nodo->cantidad_actual; i++) {
+        if (nodo->ocupantes[i] != nullptr) {
+            destruirOperativo(nodo->ocupantes[i]);
+        }
+    }
+
+    // 3. Borrar el nodo contenedor
+    delete nodo;
 }
 
 void mostrarArbol(NodoBTree4* nodo, int nivel){
@@ -472,7 +483,7 @@ void fusionarNodosArbol(NodoBTree4* padre, int idx) {
 
     hijo->cantidad_actual = 3; // nodo lleno
     padre->cantidad_actual--;
-    delete hermano;
+    delete hermano; // Aquí se elimina solo el nodo estructural sobrante
 }
 
 void eliminarDelNodo(NodoBTree4* nodo, int id) {
@@ -484,8 +495,8 @@ void eliminarDelNodo(NodoBTree4* nodo, int id) {
     // el ID está en ese nodo
     if (idx < nodo->cantidad_actual && nodo->ocupantes[idx]->ID_Clave == id){
         if (nodo->esHoja){
-            // es una hoja, se elimina y desplaza
-            delete nodo->ocupantes[idx]; 
+            // SOLUCIÓN PROFESOR: Se llama a destruirOperativo para vaciar sus Pilas y Colas internas
+            destruirOperativo(nodo->ocupantes[idx]); 
             for (int i = idx + 1; i < nodo->cantidad_actual; i++)
                 nodo->ocupantes[i - 1] = nodo->ocupantes[i];
             nodo->cantidad_actual--;
@@ -494,10 +505,12 @@ void eliminarDelNodo(NodoBTree4* nodo, int id) {
             // es un nodo interno, se busca un sustituto para no romper la estructura
             Operativo* predecesor = obtenerPredecesor(nodo->hijos[idx]);
             
-            // se clonan los datos del predecesor al nodo actual (sin borrar el original aún)
             int idSustituto = predecesor->ID_Clave;
             
-            // se reemplaza el operativo actual por el del predecesor
+            // SOLUCIÓN PROFESOR: Eliminamos de forma segura el operativo anterior antes de sobreescribir el puntero
+            destruirOperativo(nodo->ocupantes[idx]);
+
+            // se reemplaza el operativo actual por el del predecesor clonado
             nodo->ocupantes[idx] = crearOperativo(predecesor->Clase, predecesor->ID_Clave, predecesor->Bando);
             
             // se elimina el id duplicado en el subarbol

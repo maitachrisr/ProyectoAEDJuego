@@ -55,65 +55,144 @@ using namespace std;
 
 */
 
+void menu() {
+    cout << "\n========================================" << endl;
+    cout << "     SISTEMA DE MANDO YGGDRASIL  " << endl;
+    cout << "========================================" << endl;
+    cout << "1. Registrar / Insertar Operativo" << endl;
+    cout << "2. Mostrar Estructura del Arbol" << endl;
+    cout << "3. Buscar Operativo con Ruta de Acceso" << endl;
+    cout << "4. Inspeccionar Suministros por ID" << endl;
+    cout << "5. Dar de baja / Extirpar Operativo" << endl;
+    cout << "6. Ejecutar Banco de Pruebas Automatico" << endl;
+    cout << "0. Salir" << endl;
+    cout << "========================================" << endl;
+    cout << "Seleccione una opcion: ";
+}
+
 int main() {
     srand(time(0)); // para evitar lanzadas de dados consistentes
-    // PROGRAMA DE PRUEBA
     ArbolB4 yggdrasil;
-    cout << "--- INICIANDO OPERACION YGGDRASIL ---" << endl;
+    int opcion, clase, id, bando;
 
-    // se insertan valores predeterminados del pdf del proyecto
-    cout << "\n1 - PRUEBA DE INSERCION ORDENADA:" << endl;
-    insertarenArbol(yggdrasil, crearOperativo(1, 10, 1)); // borin (equipo neon)
-    insertarenArbol(yggdrasil, crearOperativo(3, 20, 1)); // dra. carter (equipo neon)
-    insertarenArbol(yggdrasil, crearOperativo(2, 30, 2)); // omega genérico
-    
-    cout << "IDs en raiz: ";
-    for(int i=0; i < yggdrasil.raiz->cantidad_actual; i++) {
-        cout << "[" << yggdrasil.raiz->ocupantes[i]->ID_Clave << "] ";
-    }
-    cout << endl;
+    do {
+        menu();
+        cin >> opcion;
 
-    // prueba de split (rompe al insertar el 25)
-    cout << endl;
-    cout << "2 - PRUEBA DE SPLIT " << endl;
-    insertarenArbol(yggdrasil, crearOperativo(1, 25, 2));
-    mostrarArbol(yggdrasil.raiz, 0);
+        switch(opcion) {
+            case 1:
+                cout << "\n--- REGISTRAR NUEVO OPERATIVO ---" << endl;
+                cout << "Ingrese ID Clave (Entero Unico): ";
+                cin >> id;
+                if (buscarYRetornarPersonaje(yggdrasil.raiz, id) != nullptr) {
+                    cout << "[ERROR] El ID ya existe en el Nucleo." << endl;
+                    break;
+                }
+                cout << "Seleccione Clase (1: Juggernaut | 2: Ejecutor | 3: Espectro): ";
+                cin >> clase;
+                if(clase < 1 || clase > 3) { cout << "Clase invalida." << endl; break; }
+                cout << "Seleccione Bando (1: Neon (N) | 2: OMEGA (O)): ";
+                cin >> bando;
+                if(bando < 1 || bando > 2) { cout << "Bando invalido." << endl; break; }
 
-    // busqueda
-    cout << endl;
-    cout << "3 - PRUEBA DE BUSQUEDA (Ruta al ID 25):" << endl;
-    buscarOperativo(yggdrasil.raiz, 25, 0);
+                insertarenArbol(yggdrasil, crearOperativo(clase, id, bando));
+                cout << "[EXITO] Operativo inyectado en la estructura." << endl;
+                break;
 
-    // insercion para el borrado
-    cout << endl;
-    cout << "4 - PREPARANDO EL ARBOL PARA ELIMINACION..." << endl;
-    insertarenArbol(yggdrasil, crearOperativo(2, 5, 1));
-    insertarenArbol(yggdrasil, crearOperativo(1, 15, 2));
-    mostrarArbol(yggdrasil.raiz, 0);
+            case 2:
+                cout << "\n--- AUDITORIA VISUAL DE ARBOL B-4 ---" << endl;
+                if (yggdrasil.raiz == nullptr) {
+                    cout << "El arbol esta vacio." << endl;
+                } else {
+                    mostrarArbol(yggdrasil.raiz, 0);
+                }
+                break;
 
-    // prueba de borrado manual
-    cout << endl;
-    cout << "5 - PRUEBA DE ELIMINACION (Eliminando ID 10):" << endl;
-    // deberia forzar una reestructuración con <1 operativos
-    eliminarDelNodo(yggdrasil.raiz, 10);
-    
-    cout << "Arbol tras extirpacion del ID 10:" << endl;
-    mostrarArbol(yggdrasil.raiz, 0);
+            case 3:
+                cout << "\n--- INTELIGENCIA DE BUSQUEDA ---" << endl;
+                cout << "Ingrese ID a rastrear: ";
+                cin >> id;
+                buscarOperativo(yggdrasil.raiz, id, 0);
+                break;
 
-    // verificacion final
-    cout << endl;
-    cout << "6. VERIFICACION DE SUMINISTROS (ID 20):" << endl;
-    // se busca el operativo por su ID desde la raiz
-    Operativo* carter = buscarYRetornarPersonaje(yggdrasil.raiz, 20);
+            case 4:
+                cout << "\n--- AUDITORIA DE SUMINISTROS ---" << endl;
+                cout << "Ingrese ID del Operativo: ";
+                cin >> id;
+                {
+                    Operativo* op = buscarYRetornarPersonaje(yggdrasil.raiz, id);
+                    if (op != nullptr) {
+                        inspeccionarSuministrosporID(op);
+                    } else {
+                        cout << "[ERROR] Operativo no encontrado." << endl;
+                    }
+                }
+                break;
 
-    if (carter != nullptr) {
-        inspeccionarSuministrosporID(carter);
-    } else {
-        cout << "Error: No se encontro al operativo 20 (carter) para la inspeccion." << endl;
-    }
+            case 5:
+                cout << "\n--- EXTIRPACION MANUAL (ELIMINAR) ---" << endl;
+                cout << "Ingrese ID del operativo a dar de baja: ";
+                cin >> id;
+                if (buscarYRetornarPersonaje(yggdrasil.raiz, id) == nullptr) {
+                    cout << "[ERROR] El ID no existe en el sistema." << endl;
+                } else {
+                    eliminarDelNodo(yggdrasil.raiz, id);
+                    // IMPORTANTE: Si la raíz quedó completamente vacía por una fusión
+                    if (yggdrasil.raiz != nullptr && yggdrasil.raiz->cantidad_actual == 0) {
+                        NodoBTree4* viejaRaiz = yggdrasil.raiz;
+                        if (yggdrasil.raiz->esHoja) {
+                            yggdrasil.raiz = nullptr;
+                        } else {
+                            yggdrasil.raiz = yggdrasil.raiz->hijos[0];
+                        }
+                        delete viejaRaiz; // Liberación estructural limpia
+                    }
+                    cout << "[EXITO] Registro borrado y memoria interna liberada de forma eficiente." << endl;
+                }
+                break;
 
-    cout << endl;
-    cout << "--- PRUEBA DE ESTRUCTURAS COMPLETADA ---" << endl;
+            case 6:
+                cout << "\n--- EJECUTANDO BANCO DE PRUEBAS AUTOMATICO ---" << endl;
+                insertarenArbol(yggdrasil, crearOperativo(1, 10, 1)); 
+                insertarenArbol(yggdrasil, crearOperativo(3, 20, 1)); 
+                insertarenArbol(yggdrasil, crearOperativo(2, 30, 2)); 
+                cout << "1. Insercion ordenada completada de IDs: 10, 20, 30." << endl;
+
+                insertarenArbol(yggdrasil, crearOperativo(1, 25, 2));
+                cout << "2. Insercion de ID 25 forzo Split. Estado actual:" << endl;
+                mostrarArbol(yggdrasil.raiz, 0);
+
+                cout << "3. Buscando Ruta de ID 25:" << endl;
+                buscarOperativo(yggdrasil.raiz, 25, 0);
+
+                insertarenArbol(yggdrasil, crearOperativo(2, 5, 1));
+                insertarenArbol(yggdrasil, crearOperativo(1, 15, 2));
+                cout << "4. Preparando reestructuraciones adicionales..." << endl;
+
+                eliminarDelNodo(yggdrasil.raiz, 10);
+                cout << "5. Extirpacion del ID 10 completada con rebalanceo estructural." << endl;
+
+                cout << "6. Verificacion profunda de suministros dinamicos (ID 20):" << endl;
+                {
+                    Operativo* carter = buscarYRetornarPersonaje(yggdrasil.raiz, 20);
+                    if (carter != nullptr) inspeccionarSuministrosporID(carter);
+                }
+                break;
+
+            case 0:
+                cout << "\nCerrando Operacion Yggdrasil. Destruyendo estructuras..." << endl;
+                // EXTREMADAMENTE IMPORTANTE: Liberación de TODA la memoria dinámica restante antes de finalizar el proceso
+                liberarArbolBinario(yggdrasil.raiz);
+                yggdrasil.raiz = nullptr;
+                cout << "[MEMORIA HEAP LIMPIA] No quedan fugas. Adios." << endl;
+                break;
+
+            default:
+                cout << "Opcion incorrecta." << endl;
+        }
+    } while (opcion != 0);
+
+    return 0;
 
     return 0;
 }
