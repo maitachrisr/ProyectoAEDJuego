@@ -65,9 +65,86 @@ void menu() {
     cout << "4. Inspeccionar Suministros por ID" << endl;
     cout << "5. Dar de baja / Extirpar Operativo" << endl;
     cout << "6. Ejecutar Banco de Pruebas Automatico" << endl;
+    cout << "7. Ejecutar Simulacion Automática (10 Turnos)" << endl;
     cout << "0. Salir" << endl;
     cout << "========================================" << endl;
     cout << "Seleccione una opcion: ";
+}
+
+Operativo* generarOperativoAleatorio(int bando) {
+    int clase = rand() % 3 + 1;
+    int id = 0;
+    if (clase == 1) { // Tanque
+        id = rand() % 200 + 801;
+        while (id == 880 || id == 990) id = rand() % 200 + 801;
+    } else if (clase == 2) { // Asesino
+        id = rand() % 300 + 501;
+    } else { // Hacker
+        id = rand() % 500 + 1;
+        while (id == 10 || id == 20) id = rand() % 500 + 1;
+    }
+    return crearOperativo(clase, id, bando);
+}
+
+void ejecutarSimulacion(ArbolB4& arbol) {
+    cout << "\n=============================================" << endl;
+    cout << "     SIMULADOR AUTOMATICO YGGDRASIL  " << endl;
+    cout << "     (MODO AUTOMATICO: 10 TURNOS CON DADO)" << endl;
+    cout << "=============================================" << endl;
+    
+    cin.ignore(10000, '\n'); // Limpiar buffer de entrada de cin anteriores
+    int turnosTotales = 10;
+    int totalInyectados = 0;
+    
+    for (int t = 1; t <= turnosTotales; t++) {
+        int bando = (t % 2 == 1) ? 1 : 2; // Turno impar = Neon (1), par = OMEGA (2)
+        string nombreBando = (bando == 1) ? "Neon (N)" : "OMEGA (O)";
+        
+        cout << "\n=============================================" << endl;
+        cout << "TURNO " << t << ": Equipo " << nombreBando << endl;
+        cout << "=============================================" << endl;
+        
+        int dado = rand() % 3 + 1;
+        cout << "[PASO 1] Tirada de dado de inyeccion: " << dado << endl;
+        
+        for (int i = 0; i < dado; i++) {
+            if (totalInyectados >= 60) {
+                cout << "[LIMITE DE PARTIDA] Se ha alcanzado el maximo de 60 inyecciones globales." << endl;
+                break;
+            }
+            
+            Operativo* nuevoOp = generarOperativoAleatorio(bando);
+            
+            if (nuevoOp != nullptr) {
+                cout << "\n[PASO 2 y 3] Intentando inyectar Operativo ID " << nuevoOp->ID_Clave 
+                     << " (Clase: " << nuevoOp->Clase << ", Bando: " << (nuevoOp->Bando == 1 ? "Neon" : "OMEGA") << ")" << endl;
+                
+                // Buscar duplicados
+                if (buscarYRetornarPersonaje(arbol.raiz, nuevoOp->ID_Clave) != nullptr) {
+                    cout << "  -> [ERROR] El ID " << nuevoOp->ID_Clave << " ya existe en la estructura. Inyeccion fallida." << endl;
+                    destruirOperativo(nuevoOp);
+                } else {
+                    insertarenArbol(arbol, nuevoOp);
+                    cout << "  -> [EXITO] Operativo inyectado." << endl;
+                    totalInyectados++;
+                }
+            }
+        }
+        
+        cout << "\n[ESTADO DEL ARBOL TRAS INYECCIONES]:" << endl;
+        mostrarArbol(arbol.raiz, 0);
+        
+        // [PASO 4] Combate y Limpieza
+        resolverFaseCombate(arbol);
+        
+        if (t < turnosTotales) {
+            cout << "\nPresione ENTER para avanzar al Turno " << (t + 1) << "...";
+            cin.get();
+        }
+    }
+    cout << "\n=============================================" << endl;
+    cout << "     SIMULACION COMPLETADA. TOTAL INYECTADOS: " << totalInyectados << endl;
+    cout << "=============================================" << endl;
 }
 
 int main() {
@@ -177,6 +254,10 @@ int main() {
                     Operativo* carter = buscarYRetornarPersonaje(yggdrasil.raiz, 20);
                     if (carter != nullptr) inspeccionarSuministrosporID(carter);
                 }
+                break;
+
+            case 7:
+                ejecutarSimulacion(yggdrasil);
                 break;
 
             case 0:

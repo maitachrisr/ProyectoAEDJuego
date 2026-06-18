@@ -152,33 +152,67 @@ Operativo* crearOperativo(int clase, int id, int bando){
     nuevo->Bando = bando;
     nuevo->Clase = clase;
 
-    // valores predeterminados por clase
-    if (clase == 1){ // juggernaut
+    // Verificar si es un héroe único por su ID_Clave
+    if (id == 10) { // Borin "Corazón de Bronce"
+        nuevo->Clase = 1; // Tanque
         nuevo->HP_Base = 150;
-        for(int i = 0; i < 3; i++) pushEscudo(nuevo->escudos, 50); // 3 escudos
+        for(int i = 0; i < 3; i++) pushEscudo(nuevo->escudos, 50); // 3 escudos físicos
+        encolarBlast(nuevo->municiones, 5); // Racimo
+        encolarBlast(nuevo->municiones, 5); // Racimo
     }
-    else if (clase == 2){ // ejecutor
-        nuevo->HP_Base = 100;
-        pushEscudo(nuevo->escudos, 100); // 1 escudo
-    }
-    else{ // espectro
+    else if (id == 20) { // Dra. Emily Carter
+        nuevo->Clase = 3; // Hacker
         nuevo->HP_Base = 60;
-        // nace sin escudos
+        // Sin escudos
+        encolarBlast(nuevo->municiones, 3); // Troyano
+        encolarBlast(nuevo->municiones, 3); // Troyano
+        encolarBlast(nuevo->municiones, 3); // Troyano
     }
-
-    // suministros aleatorios
-    int cantidadBlasts = rand() % 4 + 1; 
-    
-    for (int i = 0; i < cantidadBlasts; i++){
-        // generar tipo de blast aleatorio de los 5 existentes
-        int tipoAleatorio = rand() % 5 + 1; 
-        
-        // especial: solo los espectros encolan el control mental (tipo 3)
-        if (tipoAleatorio == 3 && clase != 3){
-            tipoAleatorio = 1; // si no es hacker, se da un laser
+    else if (id == 990) { // Gnashrak "El Asediador"
+        nuevo->Clase = 2; // Asesino
+        nuevo->HP_Base = 100;
+        pushEscudo(nuevo->escudos, 100); // 1 escudo anti-plasma
+        encolarBlast(nuevo->municiones, 2); // EMP
+        encolarBlast(nuevo->municiones, 2); // EMP
+        encolarBlast(nuevo->municiones, 4); // Disrupción
+    }
+    else if (id == 880) { // El Alfa / Paciente Cero
+        nuevo->Clase = 1; // Tanque
+        nuevo->HP_Base = 150;
+        pushEscudo(nuevo->escudos, 100); // 1 Escudo Espejo (100 HP)
+        encolarBlast(nuevo->municiones, 5); // Racimo
+        encolarBlast(nuevo->municiones, 5); // Racimo
+        encolarBlast(nuevo->municiones, 5); // Racimo
+    }
+    else {
+        // valores predeterminados por clase
+        if (clase == 1){ // juggernaut
+            nuevo->HP_Base = 150;
+            for(int i = 0; i < 3; i++) pushEscudo(nuevo->escudos, 50); // 3 escudos
         }
+        else if (clase == 2){ // ejecutor
+            nuevo->HP_Base = 100;
+            pushEscudo(nuevo->escudos, 100); // 1 escudo
+        }
+        else{ // espectro
+            nuevo->HP_Base = 60;
+            // nace sin escudos
+        }
+
+        // suministros aleatorios
+        int cantidadBlasts = rand() % 4 + 1; 
         
-        encolarBlast(nuevo->municiones, tipoAleatorio);
+        for (int i = 0; i < cantidadBlasts; i++){
+            // generar tipo de blast aleatorio de los 5 existentes
+            int tipoAleatorio = rand() % 5 + 1; 
+            
+            // especial: solo los espectros encolan el control mental (tipo 3)
+            if (tipoAleatorio == 3 && clase != 3){
+                tipoAleatorio = 1; // si no es hacker, se da un laser
+            }
+            
+            encolarBlast(nuevo->municiones, tipoAleatorio);
+        }
     }
 
     return nuevo;
@@ -544,4 +578,299 @@ void eliminarDelNodo(NodoBTree4* nodo, int id) {
         }
         eliminarDelNodo(nodo->hijos[idx], id);
     }
+}
+
+// ==========================================
+// NUEVAS FUNCIONES DE COMBATE Y SIMULACIÓN
+// ==========================================
+
+Operativo* clonarOperativo(Operativo* original) {
+    if (original == nullptr) return nullptr;
+    Operativo* clon = new Operativo;
+    clon->ID_Clave = original->ID_Clave;
+    clon->Bando = original->Bando;
+    clon->HP_Base = original->HP_Base;
+    clon->Clase = original->Clase;
+    clon->escudos.tope = nullptr;
+    clon->municiones.frente = nullptr;
+    clon->municiones.final = nullptr;
+    
+    // Clonar escudos (LIFO)
+    int tempEscudos[100];
+    int countE = 0;
+    NodoEscudo* currE = original->escudos.tope;
+    while (currE != nullptr && countE < 100) {
+        tempEscudos[countE++] = currE->salud;
+        currE = currE->siguiente;
+    }
+    for (int i = countE - 1; i >= 0; i--) {
+        pushEscudo(clon->escudos, tempEscudos[i]);
+    }
+    
+    // Clonar municiones (FIFO)
+    NodoBlast* currB = original->municiones.frente;
+    while (currB != nullptr) {
+        encolarBlast(clon->municiones, currB->tipoBlast);
+        currB = currB->siguiente;
+    }
+    return clon;
+}
+
+void recibirDano(Operativo* op, int cantidad, int tipoBlast) {
+    if (op == nullptr || cantidad <= 0) return;
+    
+    cout << "  -> ID " << op->ID_Clave << " (Bando " << (op->Bando == 1 ? "Neon" : "OMEGA") << ") recibe impacto (" << nombreBlast(tipoBlast) << ")" << endl;
+    
+    if (tipoBlast == 2) { // EMP (Perforante)
+        if (op->escudos.tope != nullptr) {
+            NodoEscudo* escudo = op->escudos.tope;
+            op->escudos.tope = escudo->siguiente;
+            delete escudo;
+            
+            int absorbido = 30;
+            int restante = 20;
+            cout << "    [ESCUDO ROTO] EMP destruyo escudo de ID " << op->ID_Clave << ". Absorbio " << absorbido << " HP." << endl;
+            op->HP_Base -= restante;
+            cout << "    [HP] ID " << op->ID_Clave << " recibio " << restante << " de daño remanente. HP restante: " << op->HP_Base << endl;
+        } else {
+            op->HP_Base -= cantidad;
+            cout << "    [HP] ID " << op->ID_Clave << " recibio " << cantidad << " de daño directo a su vida. HP restante: " << op->HP_Base << endl;
+        }
+    }
+    else { // Láser (1) o Racimo (5) o cualquier otro daño
+        if (op->escudos.tope != nullptr) {
+            NodoEscudo* escudo = op->escudos.tope;
+            if (escudo->salud > cantidad) {
+                escudo->salud -= cantidad;
+                cout << "    [ESCUDO] ID " << op->ID_Clave << " absorbio " << cantidad << " de daño. Salud escudo restante: " << escudo->salud << " HP" << endl;
+            } else {
+                int absorbido = escudo->salud;
+                int restante = cantidad - absorbido;
+                op->escudos.tope = escudo->siguiente;
+                delete escudo;
+                
+                cout << "    [ESCUDO ROTO] ID " << op->ID_Clave << " absorbio " << absorbido << " HP y fue destruido." << endl;
+                if (restante > 0) {
+                    op->HP_Base -= restante;
+                    cout << "    [HP] ID " << op->ID_Clave << " recibio " << restante << " de daño remanente. HP restante: " << op->HP_Base << endl;
+                }
+            }
+        } else {
+            op->HP_Base -= cantidad;
+            cout << "    [HP] ID " << op->ID_Clave << " recibio " << cantidad << " de daño directo a su vida. HP restante: " << op->HP_Base << endl;
+        }
+    }
+}
+
+Operativo* buscarEnemigoConMayorID(NodoBTree4* nodo, int bandoAtacante) {
+    if (nodo == nullptr) return nullptr;
+    Operativo* target = nullptr;
+    for (int i = 0; i < nodo->cantidad_actual; i++) {
+        if (nodo->ocupantes[i]->Bando != bandoAtacante && nodo->ocupantes[i]->HP_Base > 0) {
+            if (target == nullptr || nodo->ocupantes[i]->ID_Clave > target->ID_Clave) {
+                target = nodo->ocupantes[i];
+            }
+        }
+    }
+    return target;
+}
+
+Operativo* buscarEnemigoEnHijos(NodoBTree4* nodo, int bandoAtacante) {
+    if (nodo == nullptr || nodo->esHoja) return nullptr;
+    Operativo* target = nullptr;
+    for (int i = 0; i <= nodo->cantidad_actual; i++) {
+        NodoBTree4* hijo = nodo->hijos[i];
+        if (hijo != nullptr) {
+            Operativo* temp = buscarEnemigoConMayorID(hijo, bandoAtacante);
+            if (temp != nullptr) {
+                if (target == nullptr || temp->ID_Clave > target->ID_Clave) {
+                    target = temp;
+                }
+            }
+        }
+    }
+    return target;
+}
+
+void aplicarDanoRacimo(NodoBTree4* nodo, int bandoAtacante) {
+    if (nodo == nullptr) return;
+    cout << "    [RACIMO AoE] Aplicando 20 de daño de área..." << endl;
+    // Daño en el nodo actual
+    for (int i = 0; i < nodo->cantidad_actual; i++) {
+        if (nodo->ocupantes[i]->Bando != bandoAtacante && nodo->ocupantes[i]->HP_Base > 0) {
+            recibirDano(nodo->ocupantes[i], 20, 5);
+        }
+    }
+    // Daño en los hijos directos
+    if (!nodo->esHoja) {
+        for (int i = 0; i <= nodo->cantidad_actual; i++) {
+            NodoBTree4* hijo = nodo->hijos[i];
+            if (hijo != nullptr) {
+                for (int j = 0; j < hijo->cantidad_actual; j++) {
+                    if (hijo->ocupantes[j]->Bando != bandoAtacante && hijo->ocupantes[j]->HP_Base > 0) {
+                        recibirDano(hijo->ocupantes[j], 20, 5);
+                    }
+                }
+            }
+        }
+    }
+}
+
+NodoBTree4* buscarNodoDeOperativo(NodoBTree4* nodo, int id) {
+    if (nodo == nullptr) return nullptr;
+    for (int i = 0; i < nodo->cantidad_actual; i++) {
+        if (nodo->ocupantes[i]->ID_Clave == id) return nodo;
+    }
+    if (nodo->esHoja) return nullptr;
+    for (int i = 0; i <= nodo->cantidad_actual; i++) {
+        NodoBTree4* res = buscarNodoDeOperativo(nodo->hijos[i], id);
+        if (res != nullptr) return res;
+    }
+    return nullptr;
+}
+
+struct RegistroAtaque {
+    Operativo* atacante;
+    Operativo* defensor;
+    int tipoBlast;
+};
+
+void recolectarAtaques(NodoBTree4* nodo, NodoBTree4* raiz, RegistroAtaque* ataques, int& cantidadAtaques) {
+    if (nodo == nullptr) return;
+    
+    // Recolectar para los ocupantes de este nodo
+    for (int i = 0; i < nodo->cantidad_actual; i++) {
+        Operativo* op = nodo->ocupantes[i];
+        if (op->HP_Base > 0 && op->municiones.frente != nullptr) {
+            int tipoBlast = op->municiones.frente->tipoBlast;
+            
+            // Buscar target en el propio nodo
+            Operativo* target = buscarEnemigoConMayorID(nodo, op->Bando);
+            
+            // Si no hay target, y es un Hacker con Troyano, buscar en hijos
+            if (target == nullptr && op->Clase == 3 && tipoBlast == 3) {
+                target = buscarEnemigoEnHijos(nodo, op->Bando);
+            }
+            
+            if (target != nullptr) {
+                // Deencolar munición
+                NodoBlast* temp = op->municiones.frente;
+                op->municiones.frente = temp->siguiente;
+                if (op->municiones.frente == nullptr) {
+                    op->municiones.final = nullptr;
+                }
+                delete temp;
+                
+                // Registrar ataque
+                ataques[cantidadAtaques].atacante = op;
+                ataques[cantidadAtaques].defensor = target;
+                ataques[cantidadAtaques].tipoBlast = tipoBlast;
+                cantidadAtaques++;
+            }
+        }
+    }
+    
+    // Procesar hijos
+    if (!nodo->esHoja) {
+        for (int i = 0; i <= nodo->cantidad_actual; i++) {
+            recolectarAtaques(nodo->hijos[i], raiz, ataques, cantidadAtaques);
+        }
+    }
+}
+
+Operativo* buscarOperativoMuerto(NodoBTree4* nodo) {
+    if (nodo == nullptr) return nullptr;
+    for (int i = 0; i < nodo->cantidad_actual; i++) {
+        if (nodo->ocupantes[i]->HP_Base <= 0) {
+            return nodo->ocupantes[i];
+        }
+    }
+    if (!nodo->esHoja) {
+        for (int i = 0; i <= nodo->cantidad_actual; i++) {
+            Operativo* res = buscarOperativoMuerto(nodo->hijos[i]);
+            if (res != nullptr) return res;
+        }
+    }
+    return nullptr;
+}
+
+void limpiarOperativosMuertos(ArbolB4& arbol) {
+    while (true) {
+        Operativo* muerto = buscarOperativoMuerto(arbol.raiz);
+        if (muerto == nullptr) break;
+        cout << "  [MUERTE CONFIRMADA] ID " << muerto->ID_Clave << " (Bando " << (muerto->Bando == 1 ? "Neon" : "OMEGA") << ") ha caido en batalla. Extirpando registro..." << endl;
+        eliminarDelNodo(arbol.raiz, muerto->ID_Clave);
+        if (arbol.raiz != nullptr && arbol.raiz->cantidad_actual == 0) {
+            NodoBTree4* viejaRaiz = arbol.raiz;
+            if (arbol.raiz->esHoja) {
+                arbol.raiz = nullptr;
+            } else {
+                arbol.raiz = arbol.raiz->hijos[0];
+            }
+            delete viejaRaiz;
+        }
+    }
+}
+
+void resolverFaseCombate(ArbolB4& arbol) {
+    if (arbol.raiz == nullptr) return;
+    
+    cout << "\n=== INICIANDO FASE DE COMBATE ACTIVA ===" << endl;
+    RegistroAtaque ataques[100];
+    int cantidadAtaques = 0;
+    
+    // 1. Recolectar todos los ataques simultáneos
+    recolectarAtaques(arbol.raiz, arbol.raiz, ataques, cantidadAtaques);
+    
+    if (cantidadAtaques == 0) {
+        cout << "No hay conflictos ni municiones para disparar en este turno." << endl;
+        return;
+    }
+    
+    // 2. Ejecutar cada ataque registrado
+    for (int i = 0; i < cantidadAtaques; i++) {
+        Operativo* atacante = ataques[i].atacante;
+        Operativo* defensor = ataques[i].defensor;
+        int tipo = ataques[i].tipoBlast;
+        
+        // El atacante debe estar vivo para ejecutar el ataque
+        if (atacante->HP_Base <= 0) continue;
+        
+        cout << "* ID " << atacante->ID_Clave << " dispara " << nombreBlast(tipo) << " contra ID " << defensor->ID_Clave << endl;
+        
+        if (tipo == 1) { // Láser Estándar (25)
+            recibirDano(defensor, 25, 1);
+        }
+        else if (tipo == 2) { // EMP (50)
+            recibirDano(defensor, 50, 2);
+        }
+        else if (tipo == 3) { // Troyano (Control Mental)
+            defensor->Bando = atacante->Bando;
+            cout << "    [HACKEO EXITOSO] ID " << defensor->ID_Clave << " ha sido hackeado. Nuevo bando: " << (defensor->Bando == 1 ? "Neon" : "OMEGA") << endl;
+        }
+        else if (tipo == 4) { // Disrupción (Expulsar y reinsertar)
+            cout << "    [DISRUPCION] ID " << defensor->ID_Clave << " es expulsado del nodo y reinsertado desde la Raíz." << endl;
+            Operativo* clon = clonarOperativo(defensor);
+            eliminarDelNodo(arbol.raiz, defensor->ID_Clave);
+            // Si la raíz quedó vacía
+            if (arbol.raiz != nullptr && arbol.raiz->cantidad_actual == 0) {
+                NodoBTree4* viejaRaiz = arbol.raiz;
+                if (arbol.raiz->esHoja) {
+                    arbol.raiz = nullptr;
+                } else {
+                    arbol.raiz = arbol.raiz->hijos[0];
+                }
+                delete viejaRaiz;
+            }
+            insertarenArbol(arbol, clon);
+        }
+        else if (tipo == 5) { // Racimo (AoE 20 en nodo e hijos directos)
+            NodoBTree4* nodoAtacante = buscarNodoDeOperativo(arbol.raiz, atacante->ID_Clave);
+            aplicarDanoRacimo(nodoAtacante, atacante->Bando);
+        }
+    }
+    
+    // 3. Limpiar operativos muertos tras finalizar los impactos
+    limpiarOperativosMuertos(arbol);
+    cout << "=== FIN DE LA FASE DE COMBATE ===" << endl;
 }
