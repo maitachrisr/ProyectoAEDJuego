@@ -80,6 +80,21 @@ void liberarColaArsenal(ColaArsenal& cola) {
     cola.final = nullptr;
 }
 
+int desencolarBlast(ColaArsenal& cola) {
+    if (cola.frente == nullptr) return 0; // No hay munición, usa arma base
+
+    NodoBlast* temp = cola.frente;
+    int tipo = temp->tipoBlast;
+
+    cola.frente = cola.frente->siguiente;
+    if (cola.frente == nullptr) {
+        cola.final = nullptr;
+    }
+
+    delete temp;
+    return tipo;
+}
+
 void destruirOperativo(Operativo* op) {
     if (op == nullptr) return;
     liberarPilaDefensa(op->escudos);
@@ -886,4 +901,93 @@ void resolverFaseCombate(ArbolB4& arbol) {
     
     limpiarOperativosMuertos(arbol);
     cout << "=== FIN DE LA FASE DE COMBATE ===" << endl;
+}
+
+void ejecutarAtaque(Operativo* atacante, Operativo* defensor, ArbolB4& arbol) {
+    if (atacante == nullptr || defensor == nullptr) return;
+    if (atacante->HP_Base <= 0 || defensor->HP_Base <= 0) return;
+
+    // Extraer el proyectil del frente de la cola (FIFO)
+    int tipoProyectil = desencolarBlast(atacante->municiones);
+
+    // Determinar el daño base del arma base segun clase
+    int danoBase = 10; 
+    if (atacante->Clase == 1) danoBase = 15;      // Juggernaut (El Tanque)
+    else if (atacante->Clase == 2) danoBase = 30; // Ejecutor (El Asesino)
+    else if (atacante->Clase == 3) danoBase = 10; // Espectro (El Hacker)
+
+    cout << "\n   [*] ID " << atacante->ID_Clave << " ataca a ID " << defensor->ID_Clave << endl;
+
+    // Evaluar impacto según el tipo de proyectil
+    if (tipoProyectil == 0) {
+        // estandar
+        cout << "   -> Usa Ataque Base de su clase (Dano: " << danoBase << ")" << endl;
+        recibirDano(defensor, danoBase, 1);
+    } 
+    else if (tipoProyectil == 1) {
+        // laser
+        recibirDano(defensor, 25, 1);
+    } 
+    else if (tipoProyectil == 2) { 
+        cout << "   -> ¡DISPARO EMP PERFORANTE (50 Daño)!" << endl;
+        
+        if (defensor->escudos.tope != nullptr) {
+            NodoEscudo* escudoTop = defensor->escudos.tope;
+            
+            if (escudoTop->salud <= 50) {
+                int danoSobrante = 50 - escudoTop->salud;
+                cout << "    [PILA: POP] EMP destruyo por completo el escudo superior (" << escudoTop->salud << " HP)." << endl;
+                
+                defensor->escudos.tope = escudoTop->siguiente;
+                delete escudoTop;
+
+                if (danoSobrante > 0) {
+                    defensor->HP_Base -= danoSobrante;
+                    cout << "    [VIDA] El dano remanente dreno " << danoSobrante << " HP de la vida base. Vida actual: " << defensor->HP_Base << endl;
+                }
+            } else {
+                escudoTop->salud -= 50;
+                cout << "    [PILA: ABSORBIDO] El escudo del tope absorbio los 50 de dano. Salud restante del escudo: " << escudoTop->salud << " HP." << endl;
+                cout << "    [VIDA] La vida base permanece intacta." << endl;
+            }
+        } else {
+            // Si no tiene escudos en absoluto, recibe los 50 de daño neto en la vida
+            defensor->HP_Base -= 50;
+            cout << "    [VIDA] Impacto EMP directo sin escudos. HP restante: " << defensor->HP_Base << endl;
+        }
+    }
+    else if (tipoProyectil == 3) {
+        // troyano
+        if (atacante->Clase == 3) {
+            defensor->Bando = atacante->Bando;
+            cout << "   -> [TROYANO INTERCEPTADO] ¡ID " << defensor->ID_Clave 
+                 << " fue hackeado con éxito! Ahora lucha para el Bando " 
+                 << (defensor->Bando == 1 ? "Neon (1)" : "OMEGA (2)") << endl;
+        } else {
+            cout << "   -> Intento usar Troyano pero no es un Hacker. Se reduce a disparo estándar." << endl;
+            recibirDano(defensor, danoBase, 1);
+        }
+    } 
+    else if (tipoProyectil == 4) {
+        cout << "   -> [DISRUPCION ELECTRÓNICA] ID " << defensor->ID_Clave << " es expulsado del nodo cuántico..." << endl;
+        
+        Operativo* clon = crearOperativo(defensor->Clase, defensor->ID_Clave, defensor->Bando);
+        clon->HP_Base = defensor->HP_Base;
+        
+        clon->escudos = defensor->escudos;
+        clon->municiones = defensor->municiones;
+        
+        defensor->escudos.tope = nullptr;
+        defensor->municiones.frente = nullptr;
+        defensor->municiones.final = nullptr;
+        
+        eliminarDelNodo(arbol.raiz, defensor->ID_Clave);
+        
+        insertarenArbol(arbol, clon);
+        cout << "    [ARBOL] ID " << clon->ID_Clave << " ha sido reinsertado en una nueva posicion estacional." << endl;
+    } 
+    else if (tipoProyectil == 5) {
+        cout << "   -> [BLAST DE RACIMO] Impacto explosivo de area." << endl;
+        recibirDano(defensor, 20, 5);
+    }
 }
