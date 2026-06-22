@@ -619,46 +619,50 @@ Operativo* clonarOperativo(Operativo* original) {
 void recibirDano(Operativo* op, int cantidad, int tipoBlast) {
     if (op == nullptr || cantidad <= 0) return;
     
-    cout << "  -> ID " << op->ID_Clave << " (Bando " << (op->Bando == 1 ? "Neon" : "OMEGA") << ") recibe impacto (" << nombreBlast(tipoBlast) << ")" << endl;
+    cout << "  -> ID " << op->ID_Clave << " (" << (op->Bando == 1 ? "Neon" : "OMEGA") << ") recibe impacto (" << nombreBlast(tipoBlast) << ")" << endl;
     
-    if (tipoBlast == 2) { // EMP (Perforante)
+    if (tipoBlast == 2) { 
         if (op->escudos.tope != nullptr) {
-            NodoEscudo* escudo = op->escudos.tope;
-            op->escudos.tope = escudo->siguiente;
-            delete escudo;
+            NodoEscudo* escudoBorrar = op->escudos.tope;
+            op->escudos.tope = escudoBorrar->siguiente;
+            delete escudoBorrar;
             
             int absorbido = 30;
             int restante = 20;
-            cout << "    [ESCUDO ROTO] EMP destruyo escudo de ID " << op->ID_Clave << ". Absorbio " << absorbido << " HP." << endl;
+            cout << "    [PILA: ESCUDO ROTO] EMP dreno e inactivo el escudo superior. Absorbio " << absorbido << " HP." << endl;
             op->HP_Base -= restante;
-            cout << "    [HP] ID " << op->ID_Clave << " recibio " << restante << " de daño remanente. HP restante: " << op->HP_Base << endl;
+            cout << "    [VIDA] HP restante de ID " << op->ID_Clave << ": " << op->HP_Base << endl;
         } else {
             op->HP_Base -= cantidad;
-            cout << "    [HP] ID " << op->ID_Clave << " recibio " << cantidad << " de daño directo a su vida. HP restante: " << op->HP_Base << endl;
+            if (op->HP_Base < 0){
+                op->HP_Base == 0;
+            }
+            cout << "    [VIDA] Impacto directo sin escudos. HP restante: " << op->HP_Base << endl;
+        }
+        return;
+    }
+    
+    int danoRemanente = cantidad;
+    while (danoRemanente > 0 && op->escudos.tope != nullptr) {
+        NodoEscudo* escudoActual = op->escudos.tope;
+        
+        if (escudoActual->salud > danoRemanente) {
+            escudoActual->salud -= danoRemanente;
+            cout << "    [PILA: ESCUDO] El escudo del tope absorbio " << danoRemanente << " de daño. Salud escudo actual: " << escudoActual->salud << " HP" << endl;
+            danoRemanente = 0;
+        } else {
+            danoRemanente -= escudoActual->salud;
+            cout << "    [PILA: DESAPILAR] Escudo con " << escudoActual->salud << " HP destruido por completo." << endl;
+            
+            op->escudos.tope = escudoActual->siguiente; // POP en la Pila
+            delete escudoActual;
         }
     }
-    else { // Láser (1) o Racimo (5) o cualquier otro daño
-        if (op->escudos.tope != nullptr) {
-            NodoEscudo* escudo = op->escudos.tope;
-            if (escudo->salud > cantidad) {
-                escudo->salud -= cantidad;
-                cout << "    [ESCUDO] ID " << op->ID_Clave << " absorbio " << cantidad << " de daño. Salud escudo restante: " << escudo->salud << " HP" << endl;
-            } else {
-                int absorbido = escudo->salud;
-                int restante = cantidad - absorbido;
-                op->escudos.tope = escudo->siguiente;
-                delete escudo;
-                
-                cout << "    [ESCUDO ROTO] ID " << op->ID_Clave << " absorbio " << absorbido << " HP y fue destruido." << endl;
-                if (restante > 0) {
-                    op->HP_Base -= restante;
-                    cout << "    [HP] ID " << op->ID_Clave << " recibio " << restante << " de daño remanente. HP restante: " << op->HP_Base << endl;
-                }
-            }
-        } else {
-            op->HP_Base -= cantidad;
-            cout << "    [HP] ID " << op->ID_Clave << " recibio " << cantidad << " de daño directo a su vida. HP restante: " << op->HP_Base << endl;
-        }
+    
+    // Si aún queda daño después de vaciar la pila de escudos, impacta la vida base
+    if (danoRemanente > 0) {
+        op->HP_Base -= danoRemanente;
+        cout << "    [VIDA] El daño sobrepaso los escudos. ID " << op->ID_Clave << " recibe " << danoRemanente << " directo a su HP. HP restante: " << op->HP_Base << endl;
     }
 }
 
@@ -738,30 +742,34 @@ struct RegistroAtaque {
 void recolectarAtaques(NodoBTree4* nodo, NodoBTree4* raiz, RegistroAtaque* ataques, int& cantidadAtaques) {
     if (nodo == nullptr) return;
     
-    // Recolectar para los ocupantes de este nodo
     for (int i = 0; i < nodo->cantidad_actual; i++) {
         Operativo* op = nodo->ocupantes[i];
-        if (op->HP_Base > 0 && op->municiones.frente != nullptr) {
-            int tipoBlast = op->municiones.frente->tipoBlast;
+        
+        if (op->HP_Base > 0) {
+            int tipoBlast = 1; // Por defecto: Arma Base (Laser)
+            bool tieneMunicionEspecial = (op->municiones.frente != nullptr);
             
-            // Buscar target en el propio nodo
+            if (tieneMunicionEspecial) {
+                tipoBlast = op->municiones.frente->tipoBlast;
+            }
+            
             Operativo* target = buscarEnemigoConMayorID(nodo, op->Bando);
             
-            // Si no hay target, y es un Hacker con Troyano, buscar en hijos
             if (target == nullptr && op->Clase == 3 && tipoBlast == 3) {
                 target = buscarEnemigoEnHijos(nodo, op->Bando);
             }
             
             if (target != nullptr) {
-                // Deencolar munición
-                NodoBlast* temp = op->municiones.frente;
-                op->municiones.frente = temp->siguiente;
-                if (op->municiones.frente == nullptr) {
-                    op->municiones.final = nullptr;
+                // EFECTO COLA (FIFO): Si usamos munición especial de la cola, la desencolamos de la memoria
+                if (tieneMunicionEspecial) {
+                    NodoBlast* temp = op->municiones.frente;
+                    op->municiones.frente = temp->siguiente;
+                    if (op->municiones.frente == nullptr) {
+                        op->municiones.final = nullptr;
+                    }
+                    delete temp;
                 }
-                delete temp;
                 
-                // Registrar ataque
                 ataques[cantidadAtaques].atacante = op;
                 ataques[cantidadAtaques].defensor = target;
                 ataques[cantidadAtaques].tipoBlast = tipoBlast;
@@ -770,7 +778,6 @@ void recolectarAtaques(NodoBTree4* nodo, NodoBTree4* raiz, RegistroAtaque* ataqu
         }
     }
     
-    // Procesar hijos
     if (!nodo->esHoja) {
         for (int i = 0; i <= nodo->cantidad_actual; i++) {
             recolectarAtaques(nodo->hijos[i], raiz, ataques, cantidadAtaques);
@@ -833,8 +840,15 @@ void resolverFaseCombate(ArbolB4& arbol) {
         Operativo* defensor = ataques[i].defensor;
         int tipo = ataques[i].tipoBlast;
         
-        // El atacante debe estar vivo para ejecutar el ataque
+        // 1. El atacante debe estar vivo para ejecutar el ataque
         if (atacante->HP_Base <= 0) continue;
+        
+        // 2. ¡SOLUCIÓN CRÍTICA!: Verificar si el defensor sigue existiendo en el árbol
+        // Si fue destruido o expulsado por un ataque previo en este mismo turno, lo ignoramos.
+        if (buscarYRetornarPersonaje(arbol.raiz, defensor->ID_Clave) == nullptr) {
+            cout << "* El ataque de ID " << atacante->ID_Clave << " fallo porque el objetivo ya no esta en su posicion original." << endl;
+            continue; 
+        }
         
         cout << "* ID " << atacante->ID_Clave << " dispara " << nombreBlast(tipo) << " contra ID " << defensor->ID_Clave << endl;
         
@@ -870,7 +884,6 @@ void resolverFaseCombate(ArbolB4& arbol) {
         }
     }
     
-    // 3. Limpiar operativos muertos tras finalizar los impactos
     limpiarOperativosMuertos(arbol);
     cout << "=== FIN DE LA FASE DE COMBATE ===" << endl;
 }
