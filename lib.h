@@ -535,35 +535,78 @@ void fusionarNodosArbol(NodoBTree4* padre, int idx) {
     delete hermano; // Aquí se elimina solo el nodo estructural sobrante
 }
 
+// =================================================================
+// MODULO DE GABRIEL KHAJIKIAN: PUNTO 4 - UNDERFLOW Y VALIDACIONES
+// =================================================================
+
+// VALIDACIÓN PROACTIVA: Asegura que el nodo hijo tenga suficientes ocupantes antes de descender
+void asegurarHijoSuficiente(NodoBTree4* nodo, int idx) {
+    if (nodo == nullptr || nodo->hijos[idx] == nullptr) return;
+
+    // Si el hijo está en el mínimo absoluto de ocupantes (1 elemento)
+    if (nodo->hijos[idx]->cantidad_actual == 1) {
+        
+        // intentar pedir al hermano izquierdo
+        if (idx != 0 && nodo->hijos[idx - 1] != nullptr && nodo->hijos[idx - 1]->cantidad_actual > 1) {
+            prestarDelNodoAnterior(nodo, idx);
+        }
+        // intentar pedir al hermano derecho
+        else if (idx != nodo->cantidad_actual && nodo->hijos[idx + 1] != nullptr && nodo->hijos[idx + 1]->cantidad_actual > 1) {
+            prestarDelNodoSiguiente(nodo, idx);
+        }
+        // si ambos tienen el minimo, fusionar (o hacer merge)
+        else {
+            if (idx != nodo->cantidad_actual) {
+                fusionarNodosArbol(nodo, idx);
+            } else {
+                fusionarNodosArbol(nodo, idx - 1);
+            }
+        }
+    }
+}
+
+// ALGORITMO DE ELIMINACIÓN CON REBALANCEO AUTOMÁTICO POR MUERTE
 void eliminarDelNodo(NodoBTree4* nodo, int id) {
+    if (nodo == nullptr) return;
+
     int idx = 0;
-    while (idx < nodo->cantidad_actual && nodo->ocupantes[idx]->ID_Clave < id){
+    while (idx < nodo->cantidad_actual && nodo->ocupantes[idx]->ID_Clave < id) {
         idx++;
     }
 
     // el ID está en ese nodo
-    if (idx < nodo->cantidad_actual && nodo->ocupantes[idx]->ID_Clave == id){
-        if (nodo->esHoja){
-            // SOLUCIÓN PROFESOR: Se llama a destruirOperativo para vaciar sus Pilas y Colas internas
+    if (idx < nodo->cantidad_actual && nodo->ocupantes[idx]->ID_Clave == id) {
+        if (nodo->esHoja) {
+            // SOLUCIÓN GABRIEL: Se llama a destruirOperativo para vaciar sus Pilas y Colas internas
             destruirOperativo(nodo->ocupantes[idx]); 
-            for (int i = idx + 1; i < nodo->cantidad_actual; i++)
+            
+            for (int i = idx + 1; i < nodo->cantidad_actual; i++) {
                 nodo->ocupantes[i - 1] = nodo->ocupantes[i];
+            }
             nodo->cantidad_actual--;
         } 
-        else{
-            // es un nodo interno, se busca un sustituto para no romper la estructura
-            Operativo* predecesor = obtenerPredecesor(nodo->hijos[idx]);
+        else {
+            // es un nodo interno, se busca un sustituto para no romper la estructura: Previene Underflow antes de extraerlo
+            asegurarHijoSuficiente(nodo, idx);
             
-            int idSustituto = predecesor->ID_Clave;
+            // se recalcula el índice por si el rebalanceo movió el operativo
+            idx = 0;
+            while (idx < nodo->cantidad_actual && nodo->ocupantes[idx]->ID_Clave < id) {
+                idx++;
+            }
             
-            // SOLUCIÓN PROFESOR: Eliminamos de forma segura el operativo anterior antes de sobreescribir el puntero
-            destruirOperativo(nodo->ocupantes[idx]);
-
-            // se reemplaza el operativo actual por el del predecesor clonado
-            nodo->ocupantes[idx] = crearOperativo(predecesor->Clase, predecesor->ID_Clave, predecesor->Bando);
-            
-            // se elimina el id duplicado en el subarbol
-            eliminarDelNodo(nodo->hijos[idx], idSustituto);
+            if (idx < nodo->cantidad_actual && nodo->ocupantes[idx]->ID_Clave == id) {
+                Operativo* predecesor = obtenerPredecesor(nodo->hijos[idx]);
+                int idSustituto = predecesor->ID_Clave;
+                
+                destruirOperativo(nodo->ocupantes[idx]);
+                nodo->ocupantes[idx] = clonarOperativo(predecesor);
+                
+                // se elimina el id duplicado en el subarbol
+                eliminarDelNodo(nodo->hijos[idx], idSustituto);
+            } else {
+                eliminarDelNodo(nodo->hijos[idx], id);
+            }
         }
     } 
     else {
@@ -571,27 +614,40 @@ void eliminarDelNodo(NodoBTree4* nodo, int id) {
         if (nodo->esHoja) return; // no existe, hacer nada
 
         // el hijo necesita refuerzos?
-        if (nodo->hijos[idx]->cantidad_actual == 1){
-            // intentar pedir al hermano izquierdo
-            if (idx != 0 && nodo->hijos[idx - 1]->cantidad_actual > 1){
-                prestarDelNodoAnterior(nodo, idx);
-            }
-            // intentar pedir al hermano derecho
-            else if (idx != nodo->cantidad_actual && nodo->hijos[idx + 1]->cantidad_actual > 1){
-                prestarDelNodoSiguiente(nodo, idx);
-            }
-            // si ambos tienen el minimo, fusionar (o hacer merge)
-            else{
-                if (idx != nodo->cantidad_actual){
-                    fusionarNodosArbol(nodo, idx);
-                }
-                else{
-                    fusionarNodosArbol(nodo, idx - 1);
-                    idx--; // se ajusta el indice tras la fusión
-                }
-            }
+        asegurarHijoSuficiente(nodo, idx);
+
+        // se ajusta el indice tras la fusión si es necesario
+        if (idx > nodo->cantidad_actual) {
+            idx--;
         }
+        
         eliminarDelNodo(nodo->hijos[idx], id);
+    }
+}
+
+// FUNCIÓN DE LIMPIEZA AUTOMÁTICA (Se ejecuta cíclicamente tras el combate)
+void limpiarOperativosMuertos(ArbolB4& arbol) {
+    if (arbol.raiz == nullptr) return;
+
+    while (true) {
+        Operativo* muerto = buscarOperativoMuerto(arbol.raiz);
+        if (muerto == nullptr) break; 
+
+        cout << "\n\t[VALIDACION DE BAJA]: ID " << muerto->ID_Clave 
+             << " llego a 0 HP. Activando Underflow por Muerte..." << endl;
+             
+        eliminarDelNodo(arbol.raiz, muerto->ID_Clave);
+        
+        if (arbol.raiz != nullptr && arbol.raiz->cantidad_actual == 0) {
+            NodoBTree4* viejaRaiz = arbol.raiz;
+            if (arbol.raiz->esHoja) {
+                arbol.raiz = nullptr;
+            } else {
+                arbol.raiz = arbol.raiz->hijos[0]; 
+            }
+            delete viejaRaiz;
+            cout << "\t[SISTEMA]: Contraccion de Raiz ejecutada de forma automatica." << endl;
+        }
     }
 }
 
@@ -650,7 +706,7 @@ void recibirDano(Operativo* op, int cantidad, int tipoBlast) {
         } else {
             op->HP_Base -= cantidad;
             if (op->HP_Base < 0){
-                op->HP_Base == 0;
+                op->HP_Base = 0;
             }
             cout << "    [VIDA] Impacto directo sin escudos. HP restante: " << op->HP_Base << endl;
         }
@@ -971,11 +1027,7 @@ void ejecutarAtaque(Operativo* atacante, Operativo* defensor, ArbolB4& arbol) {
     else if (tipoProyectil == 4) {
         cout << "   -> [DISRUPCION ELECTRÓNICA] ID " << defensor->ID_Clave << " es expulsado del nodo cuántico..." << endl;
         
-        Operativo* clon = crearOperativo(defensor->Clase, defensor->ID_Clave, defensor->Bando);
-        clon->HP_Base = defensor->HP_Base;
-        
-        clon->escudos = defensor->escudos;
-        clon->municiones = defensor->municiones;
+        Operativo* clon = clonarOperativo(defensor);
         
         defensor->escudos.tope = nullptr;
         defensor->municiones.frente = nullptr;
