@@ -137,6 +137,18 @@ void ejecutarSimulacion(ArbolB4& arbol) {
         // [PASO 4] Combate y Limpieza
         resolverFaseCombate(arbol);
         
+        // VALIDACIÓN EXTRA EN EL MAIN: Si tras todo el combate el árbol quedó completamente vacío
+        if (arbol.raiz != nullptr && arbol.raiz->cantidad_actual == 0) {
+            NodoBTree4* viejaRaiz = arbol.raiz;
+            if (arbol.raiz->esHoja) {
+                arbol.raiz = nullptr;
+            } else {
+                arbol.raiz = arbol.raiz->hijos[0];
+            }
+            delete viejaRaiz;
+            cout << "\n\t[SISTEMA - ALERTA CRITICA]: Toda la red Yggdrasil ha colapsado por bajas masivas." << endl;
+        }
+        
         if (t < turnosTotales) {
             cout << "\nPresione ENTER para avanzar al Turno " << (t + 1) << "...";
             cin.get();
@@ -213,8 +225,13 @@ int main() {
                 if (buscarYRetornarPersonaje(yggdrasil.raiz, id) == nullptr) {
                     cout << "[ERROR] El ID no existe en el sistema." << endl;
                 } else {
+                    // 1. Invoca tu algoritmo de eliminación con rebalanceo automático
                     eliminarDelNodo(yggdrasil.raiz, id);
-                    // IMPORTANTE: Si la raíz quedó completamente vacía por una fusión
+                    
+                    // 2. Invoca tu ciclo de limpieza por si la baja desencadena otra muerte encadenada
+                    limpiarOperativosMuertos(yggdrasil);
+                    
+                    // 3. Verificación de contracción de raíz (Validación de Gabriel)
                     if (yggdrasil.raiz != nullptr && yggdrasil.raiz->cantidad_actual == 0) {
                         NodoBTree4* viejaRaiz = yggdrasil.raiz;
                         if (yggdrasil.raiz->esHoja) {
@@ -223,6 +240,7 @@ int main() {
                             yggdrasil.raiz = yggdrasil.raiz->hijos[0];
                         }
                         delete viejaRaiz; // Liberación estructural limpia
+                        cout << "\t[SISTEMA]: Contraccion de Raiz ejecutada tras extirpacion manual." << endl;
                     }
                     cout << "[EXITO] Registro borrado y memoria interna liberada de forma eficiente." << endl;
                 }
@@ -272,8 +290,6 @@ int main() {
                 cout << "Opcion incorrecta." << endl;
         }
     } while (opcion != 0);
-
-    return 0;
 
     return 0;
 }
