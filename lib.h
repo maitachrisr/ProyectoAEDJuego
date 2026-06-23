@@ -535,10 +535,6 @@ void fusionarNodosArbol(NodoBTree4* padre, int idx) {
     delete hermano; // Aquí se elimina solo el nodo estructural sobrante
 }
 
-// =================================================================
-// MODULO DE GABRIEL KHAJIKIAN: PUNTO 4 - UNDERFLOW Y VALIDACIONES
-// =================================================================
-
 // VALIDACIÓN PROACTIVA: Asegura que el nodo hijo tenga suficientes ocupantes antes de descender
 void asegurarHijoSuficiente(NodoBTree4* nodo, int idx) {
     if (nodo == nullptr || nodo->hijos[idx] == nullptr) return;
