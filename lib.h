@@ -573,7 +573,7 @@ void eliminarDelNodo(NodoBTree4* nodo, int id) {
     // el ID está en ese nodo
     if (idx < nodo->cantidad_actual && nodo->ocupantes[idx]->ID_Clave == id) {
         if (nodo->esHoja) {
-            // SOLUCIÓN GABRIEL: Se llama a destruirOperativo para vaciar sus Pilas y Colas internas
+            // Se llama a destruirOperativo para vaciar sus Pilas y Colas internas
             destruirOperativo(nodo->ocupantes[idx]); 
             
             for (int i = idx + 1; i < nodo->cantidad_actual; i++) {
