@@ -1,5 +1,9 @@
 /* PROYECTO DE JUEGO - ALGORITMOS Y ESTRUCTURAS DE DATOS
-    REALIZADO POR CHRISTOPHER MAITA - 31_761_223 */
+    REALIZADA POR:
+    + CHRISTOPHER SYDUEL MAITA TOVAR - 31_761_223 
+    + GABRIEL JESÚS KHAJIKIAN RODRÍGUEZ - 32_461_173
+    + DANIELA LILIANA PALMA MATA - 30_459_494    
+*/
 
 #include <iostream>
 #include "lib.h"
@@ -92,7 +96,7 @@ void ejecutarSimulacion(ArbolB4& arbol) {
     cout << "     (MODO AUTOMATICO: 10 TURNOS CON DADO)" << endl;
     cout << "=============================================" << endl;
     
-    cin.ignore(10000, '\n'); // Limpiar buffer de entrada de cin anteriores
+    cin.ignore(10000, '\n');
     int turnosTotales = 10;
     int totalInyectados = 0;
     
@@ -119,7 +123,6 @@ void ejecutarSimulacion(ArbolB4& arbol) {
                 cout << "\n[PASO 2 y 3] Intentando inyectar Operativo ID " << nuevoOp->ID_Clave 
                      << " (Clase: " << nuevoOp->Clase << ", Bando: " << (nuevoOp->Bando == 1 ? "Neon" : "OMEGA") << ")" << endl;
                 
-                // Buscar duplicados
                 if (buscarYRetornarPersonaje(arbol.raiz, nuevoOp->ID_Clave) != nullptr) {
                     cout << "  -> [ERROR] El ID " << nuevoOp->ID_Clave << " ya existe en la estructura. Inyeccion fallida." << endl;
                     destruirOperativo(nuevoOp);
@@ -134,10 +137,8 @@ void ejecutarSimulacion(ArbolB4& arbol) {
         cout << "\n[ESTADO DEL ARBOL TRAS INYECCIONES]:" << endl;
         mostrarArbol(arbol.raiz, 0);
         
-        // [PASO 4] Combate y Limpieza
         resolverFaseCombate(arbol);
         
-        // VALIDACIÓN EXTRA EN EL MAIN: Si tras todo el combate el árbol quedó completamente vacío
         if (arbol.raiz != nullptr && arbol.raiz->cantidad_actual == 0) {
             NodoBTree4* viejaRaiz = arbol.raiz;
             if (arbol.raiz->esHoja) {
@@ -156,6 +157,43 @@ void ejecutarSimulacion(ArbolB4& arbol) {
     }
     cout << "\n=============================================" << endl;
     cout << "     SIMULACION COMPLETADA. TOTAL INYECTADOS: " << totalInyectados << endl;
+    cout << "=============================================" << endl;
+
+    // RECORRIDO Y CONTEO FINAL DE TROPAS
+    int vivosNeon = 0, vivosOmega = 0;
+    int totalVidaNeon = 0, totalVidaOmega = 0;
+
+    cout << "\n>>> INICIANDO RECORRIDO CUÁNTICO FINAL <<<" << endl;
+    if (arbol.raiz == nullptr) {
+        cout << "No quedó ningún operativo en pie. La red colapsó por mutua destrucción." << endl;
+    } else {
+        realizarConteoFinalInOrder(arbol.raiz, vivosNeon, vivosOmega, totalVidaNeon, totalVidaOmega);
+    }
+
+    cout << "\n=============================================" << endl;
+    cout << "          REPORTE DE DAÑOS FINALES" << endl;
+    cout << "=============================================" << endl;
+    cout << "  RESISTENCIA NEÓN:  " << vivosNeon << " operativos vivos. HP Total: " << totalVidaNeon << endl;
+    cout << "  CORPORACIÓN OMEGA: " << vivosOmega << " operativos vivos. HP Total: " << totalVidaOmega << endl;
+    cout << "=============================================" << endl;
+
+    // Determinar la facción dominante
+    if (vivosNeon > vivosOmega) {
+        cout << "¡VICTORIA PARA LA RESISTENCIA NEÓN! El núcleo ha sido liberado." << endl;
+    } else if (vivosOmega > vivosNeon) {
+        cout << "¡VICTORIA PARA LA CORPORACIÓN OMEGA! El sistema ha sido privatizado." << endl;
+    } else {
+        // Desempate por HP acumulado
+        if (totalVidaNeon > totalVidaOmega) {
+            cout << "¡VICTORIA ESTRATÉGICA PARA NEÓN! Mayor integridad estructural de HP." << endl;
+        } else if (totalVidaOmega > totalVidaNeon) {
+            cout << "¡VICTORIA ESTRATÉGICA PARA OMEGA! Mayor integridad estructural de HP." << endl;
+        } else {
+            cout << "EMPATE ABSOLUTO. Yggdrasil se encuentra atrapado en un bucle infinito." << endl;
+        }
+    }
+    liberarArbolBinario(arbol.raiz);
+    arbol.raiz = nullptr; // se libera la memoria para evitar acumulaciones innecesarias
     cout << "=============================================" << endl;
 }
 
@@ -225,13 +263,10 @@ int main() {
                 if (buscarYRetornarPersonaje(yggdrasil.raiz, id) == nullptr) {
                     cout << "[ERROR] El ID no existe en el sistema." << endl;
                 } else {
-                    // 1. Invoca tu algoritmo de eliminación con rebalanceo automático
                     eliminarDelNodo(yggdrasil.raiz, id);
                     
-                    // 2. Invoca tu ciclo de limpieza por si la baja desencadena otra muerte encadenada
                     limpiarOperativosMuertos(yggdrasil);
                     
-                    // 3. Verificación de contracción de raíz (Validación de Gabriel)
                     if (yggdrasil.raiz != nullptr && yggdrasil.raiz->cantidad_actual == 0) {
                         NodoBTree4* viejaRaiz = yggdrasil.raiz;
                         if (yggdrasil.raiz->esHoja) {
@@ -280,7 +315,6 @@ int main() {
 
             case 0:
                 cout << "\nCerrando Operacion Yggdrasil. Destruyendo estructuras..." << endl;
-                // EXTREMADAMENTE IMPORTANTE: Liberación de TODA la memoria dinámica restante antes de finalizar el proceso
                 liberarArbolBinario(yggdrasil.raiz);
                 yggdrasil.raiz = nullptr;
                 cout << "[MEMORIA HEAP LIMPIA] No quedan fugas. Adios." << endl;

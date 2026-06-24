@@ -168,7 +168,7 @@ Operativo* crearOperativo(int clase, int id, int bando){
     nuevo->Clase = clase;
 
     // Verificar si es un héroe único por su ID_Clave
-    if (id == 10) { // Borin "Corazón de Bronce"
+    if (id == 10) { // Borin
         nuevo->Clase = 1; // Tanque
         nuevo->HP_Base = 150;
         for(int i = 0; i < 3; i++) pushEscudo(nuevo->escudos, 50); // 3 escudos físicos
@@ -561,6 +561,38 @@ void asegurarHijoSuficiente(NodoBTree4* nodo, int idx) {
     }
 }
 
+Operativo* clonarOperativo(Operativo* original) {
+    if (original == nullptr) return nullptr;
+    Operativo* clon = new Operativo;
+    clon->ID_Clave = original->ID_Clave;
+    clon->Bando = original->Bando;
+    clon->HP_Base = original->HP_Base;
+    clon->Clase = original->Clase;
+    clon->escudos.tope = nullptr;
+    clon->municiones.frente = nullptr;
+    clon->municiones.final = nullptr;
+    
+    // Clonar escudos (LIFO)
+    int tempEscudos[100];
+    int countE = 0;
+    NodoEscudo* currE = original->escudos.tope;
+    while (currE != nullptr && countE < 100) {
+        tempEscudos[countE++] = currE->salud;
+        currE = currE->siguiente;
+    }
+    for (int i = countE - 1; i >= 0; i--) {
+        pushEscudo(clon->escudos, tempEscudos[i]);
+    }
+    
+    // Clonar municiones (FIFO)
+    NodoBlast* currB = original->municiones.frente;
+    while (currB != nullptr) {
+        encolarBlast(clon->municiones, currB->tipoBlast);
+        currB = currB->siguiente;
+    }
+    return clon;
+}
+
 // ALGORITMO DE ELIMINACIÓN CON REBALANCEO AUTOMÁTICO POR MUERTE
 void eliminarDelNodo(NodoBTree4* nodo, int id) {
     if (nodo == nullptr) return;
@@ -621,13 +653,28 @@ void eliminarDelNodo(NodoBTree4* nodo, int id) {
     }
 }
 
-// FUNCIÓN DE LIMPIEZA AUTOMÁTICA (Se ejecuta cíclicamente tras el combate)
+Operativo* buscarOperativoMuerto(NodoBTree4* nodo) {
+    if (nodo == nullptr) return nullptr;
+    for (int i = 0; i < nodo->cantidad_actual; i++) {
+        if (nodo->ocupantes[i]->HP_Base <= 0) {
+            return nodo->ocupantes[i];
+        }
+    }
+    if (!nodo->esHoja) {
+        for (int i = 0; i <= nodo->cantidad_actual; i++) {
+            Operativo* res = buscarOperativoMuerto(nodo->hijos[i]);
+            if (res != nullptr) return res;
+        }
+    }
+    return nullptr;
+}
+
 void limpiarOperativosMuertos(ArbolB4& arbol) {
     if (arbol.raiz == nullptr) return;
 
     while (true) {
         Operativo* muerto = buscarOperativoMuerto(arbol.raiz);
-        if (muerto == nullptr) break; 
+        if (muerto == nullptr) break;
 
         cout << "\n\t[VALIDACION DE BAJA]: ID " << muerto->ID_Clave 
              << " llego a 0 HP. Activando Underflow por Muerte..." << endl;
@@ -648,40 +695,8 @@ void limpiarOperativosMuertos(ArbolB4& arbol) {
 }
 
 // ==========================================
-// NUEVAS FUNCIONES DE COMBATE Y SIMULACIÓN
+//     FUNCIONES DE COMBATE Y SIMULACIÓN
 // ==========================================
-
-Operativo* clonarOperativo(Operativo* original) {
-    if (original == nullptr) return nullptr;
-    Operativo* clon = new Operativo;
-    clon->ID_Clave = original->ID_Clave;
-    clon->Bando = original->Bando;
-    clon->HP_Base = original->HP_Base;
-    clon->Clase = original->Clase;
-    clon->escudos.tope = nullptr;
-    clon->municiones.frente = nullptr;
-    clon->municiones.final = nullptr;
-    
-    // Clonar escudos (LIFO)
-    int tempEscudos[100];
-    int countE = 0;
-    NodoEscudo* currE = original->escudos.tope;
-    while (currE != nullptr && countE < 100) {
-        tempEscudos[countE++] = currE->salud;
-        currE = currE->siguiente;
-    }
-    for (int i = countE - 1; i >= 0; i--) {
-        pushEscudo(clon->escudos, tempEscudos[i]);
-    }
-    
-    // Clonar municiones (FIFO)
-    NodoBlast* currB = original->municiones.frente;
-    while (currB != nullptr) {
-        encolarBlast(clon->municiones, currB->tipoBlast);
-        currB = currB->siguiente;
-    }
-    return clon;
-}
 
 void recibirDano(Operativo* op, int cantidad, int tipoBlast) {
     if (op == nullptr || cantidad <= 0) return;
@@ -852,40 +867,6 @@ void recolectarAtaques(NodoBTree4* nodo, NodoBTree4* raiz, RegistroAtaque* ataqu
     }
 }
 
-Operativo* buscarOperativoMuerto(NodoBTree4* nodo) {
-    if (nodo == nullptr) return nullptr;
-    for (int i = 0; i < nodo->cantidad_actual; i++) {
-        if (nodo->ocupantes[i]->HP_Base <= 0) {
-            return nodo->ocupantes[i];
-        }
-    }
-    if (!nodo->esHoja) {
-        for (int i = 0; i <= nodo->cantidad_actual; i++) {
-            Operativo* res = buscarOperativoMuerto(nodo->hijos[i]);
-            if (res != nullptr) return res;
-        }
-    }
-    return nullptr;
-}
-
-void limpiarOperativosMuertos(ArbolB4& arbol) {
-    while (true) {
-        Operativo* muerto = buscarOperativoMuerto(arbol.raiz);
-        if (muerto == nullptr) break;
-        cout << "  [MUERTE CONFIRMADA] ID " << muerto->ID_Clave << " (Bando " << (muerto->Bando == 1 ? "Neon" : "OMEGA") << ") ha caido en batalla. Extirpando registro..." << endl;
-        eliminarDelNodo(arbol.raiz, muerto->ID_Clave);
-        if (arbol.raiz != nullptr && arbol.raiz->cantidad_actual == 0) {
-            NodoBTree4* viejaRaiz = arbol.raiz;
-            if (arbol.raiz->esHoja) {
-                arbol.raiz = nullptr;
-            } else {
-                arbol.raiz = arbol.raiz->hijos[0];
-            }
-            delete viejaRaiz;
-        }
-    }
-}
-
 void resolverFaseCombate(ArbolB4& arbol) {
     if (arbol.raiz == nullptr) return;
     
@@ -1037,5 +1018,33 @@ void ejecutarAtaque(Operativo* atacante, Operativo* defensor, ArbolB4& arbol) {
     else if (tipoProyectil == 5) {
         cout << "   -> [BLAST DE RACIMO] Impacto explosivo de area." << endl;
         recibirDano(defensor, 20, 5);
+    }
+}
+
+// RECORRIDO FINAL DE CONTEO DE TROPAS (HECHO CON INORDEN)
+void realizarConteoFinalInOrder(NodoBTree4* nodo, int& vivosNeon, int& vivosOmega, int& totalVidaNeon, int& totalVidaOmega) {
+    if (nodo == nullptr) return;
+
+    for (int i = 0; i < nodo->cantidad_actual; i++) {
+        if (!nodo->esHoja) {
+            realizarConteoFinalInOrder(nodo->hijos[i], vivosNeon, vivosOmega, totalVidaNeon, totalVidaOmega);
+        }
+
+        Operativo* op = nodo->ocupantes[i];
+        if (op != nullptr && op->HP_Base > 0) {
+            if (op->Bando == 1) {
+                vivosNeon++;
+                totalVidaNeon += op->HP_Base;
+                cout << "  [SUPERVIVIENTE NEÓN] ID: " << op->ID_Clave << " | Clase: " << op->Clase << " | HP: " << op->HP_Base << endl;
+            } else if (op->Bando == 2) {
+                vivosOmega++;
+                totalVidaOmega += op->HP_Base;
+                cout << "  [SUPERVIVIENTE OMEGA] ID: " << op->ID_Clave << " | Clase: " << op->Clase << " | HP: " << op->HP_Base << endl;
+            }
+        }
+    }
+
+    if (!nodo->esHoja) {
+        realizarConteoFinalInOrder(nodo->hijos[nodo->cantidad_actual], vivosNeon, vivosOmega, totalVidaNeon, totalVidaOmega);
     }
 }
