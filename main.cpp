@@ -107,6 +107,11 @@ void ejecutarSimulacion(ArbolB4& arbol) {
     cin.ignore(10000, '\n');
     int turnosTotales = 10;
     int totalInyectados = 0;
+    // Variables para el dominio de la raíz
+    int bandoControlRaizActual = 0; // 0 = Nadie, 1 = Neon, 2 = OMEGA
+    int turnosConsecutivosRaiz = 0;
+    bool victoriaPorDominioRaiz = false;
+    string faccionDominanteRaiz = "";
     
     for (int t = 1; t <= turnosTotales; t++) {
         int bando = (t % 2 == 1) ? 1 : 2; // Turno impar = Neon (1), par = OMEGA (2)
@@ -158,11 +163,66 @@ void ejecutarSimulacion(ArbolB4& arbol) {
             cout << "\n\t[SISTEMA - ALERTA CRITICA]: Toda la red Yggdrasil ha colapsado por bajas masivas." << endl;
         }
         
+        // --- VALIDACIÓN DE CONDICIÓN 1: ANIQUILACIÓN ---
+        int neonVivos = 0, omegaVivos = 0;
+        contarVivosEnTurno(arbol.raiz, neonVivos, omegaVivos);
+        if (t > 1 && (neonVivos == 0 || omegaVivos == 0)) {
+            cout << "\n=============================================" << endl;
+            if (neonVivos > 0) cout << "Aniquilación total por La Resistencia Neón" << endl;
+            else cout << "Aniquilación total por La Corporación OMEGA" << endl;
+            cout << "=============================================" << endl;
+            break; 
+        }
+
+        // --- VALIDACIÓN DE CONDICIÓN 2: DOMINIO DE LA RAÍZ ---
+        if (arbol.raiz != nullptr && arbol.raiz->cantidad_actual > 0) {
+            int bandoRaizPrimerElemento = arbol.raiz->ocupantes[0]->Bando;
+            bool raizExclusiva = true;
+            for (int k = 1; k < arbol.raiz->cantidad_actual; k++) {
+                if (arbol.raiz->ocupantes[k]->Bando != bandoRaizPrimerElemento) {
+                    raizExclusiva = false;
+                    break;
+                }
+            }
+            if (raizExclusiva) {
+                if (bandoControlRaizActual == bandoRaizPrimerElemento) {
+                    turnosConsecutivosRaiz++;
+                } 
+                else {
+                    bandoControlRaizActual = bandoRaizPrimerElemento;
+                    turnosConsecutivosRaiz = 1;
+                }
+            } 
+            else {
+                bandoControlRaizActual = 0;
+                turnosConsecutivosRaiz = 0;
+            }
+            if (turnosConsecutivosRaiz >= 3) {
+                victoriaPorDominioRaiz = true;
+                faccionDominanteRaiz = (bandoControlRaizActual == 1) ? "La Resistencia Neón" : "La Corporación OMEGA";
+                cout << "\n=============================================" << endl;
+                cout << "¡" << faccionDominanteRaiz << " ha hackeado Yggdrasil desde la Raíz!" << endl;
+                cout << "=============================================" << endl;
+                break;
+            }
+        } else {
+            bandoControlRaizActual = 0;
+            turnosConsecutivosRaiz = 0;
+        }
+        
         if (t < turnosTotales) {
             cout << "\nPresione ENTER para avanzar al Turno " << (t + 1) << "...";
+            cin.clear();
             cin.get();
         }
     }
+
+    if (victoriaPorDominioRaiz) {
+        liberarArbolBinario(arbol.raiz);
+        arbol.raiz = nullptr;
+        return;
+    }
+
     cout << "\n=============================================" << endl;
     cout << "     SIMULACION COMPLETADA. TOTAL INYECTADOS: " << totalInyectados << endl;
     cout << "=============================================" << endl;
@@ -188,14 +248,33 @@ void ejecutarSimulacion(ArbolB4& arbol) {
     // Determinar la facción dominante
     if (vivosNeon > vivosOmega) {
         cout << "¡VICTORIA PARA LA RESISTENCIA NEÓN! El núcleo ha sido liberado." << endl;
-    } else if (vivosOmega > vivosNeon) {
+    } 
+    else if (vivosOmega > vivosNeon) {
         cout << "¡VICTORIA PARA LA CORPORACIÓN OMEGA! El sistema ha sido privatizado." << endl;
-    } else {
-        // Desempate por HP acumulado
-        if (totalVidaNeon > totalVidaOmega) {
-            cout << "¡VICTORIA ESTRATÉGICA PARA NEÓN! Mayor integridad estructural de HP." << endl;
-        } else if (totalVidaOmega > totalVidaNeon) {
-            cout << "¡VICTORIA ESTRATÉGICA PARA OMEGA! Mayor integridad estructural de HP." << endl;
+    } 
+    else {
+        cout << "EMPATE EN OPERATIVOS VIVOS. Aplicando criterio de desempate por ID de la Raíz..." << endl;
+        int idMaxNeonRaiz = -1;
+        int idMaxOmegaRaiz = -1;
+
+        if (arbol.raiz != nullptr) {
+            for (int i = 0; i < arbol.raiz->cantidad_actual; i++) {
+                if (arbol.raiz->ocupantes[i] != nullptr && arbol.raiz->ocupantes[i]->HP_Base > 0) {
+                    if (arbol.raiz->ocupantes[i]->Bando == 1) {
+                        if (arbol.raiz->ocupantes[i]->ID_Clave > idMaxNeonRaiz)
+                            idMaxNeonRaiz = arbol.raiz->ocupantes[i]->ID_Clave;
+                    } else if (arbol.raiz->ocupantes[i]->Bando == 2) {
+                        if (arbol.raiz->ocupantes[i]->ID_Clave > idMaxOmegaRaiz)
+                            idMaxOmegaRaiz = arbol.raiz->ocupantes[i]->ID_Clave;
+                    }
+                }
+            }
+        }
+
+        if (idMaxNeonRaiz > idMaxOmegaRaiz) {
+            cout << "¡VICTORIA PARA LA RESISTENCIA NEÓN! Unidad de mayor ID en la raíz detectada (" << idMaxNeonRaiz << ")." << endl;
+        } else if (idMaxOmegaRaiz > idMaxNeonRaiz) {
+            cout << "¡VICTORIA PARA LA CORPORACIÓN OMEGA! Unidad de mayor ID en la raíz detectada (" << idMaxOmegaRaiz << ")." << endl;
         } else {
             cout << "EMPATE ABSOLUTO. Yggdrasil se encuentra atrapado en un bucle infinito." << endl;
         }
