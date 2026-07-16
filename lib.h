@@ -1,7 +1,66 @@
 #include <ctime>   // para time()
 #include <cstdlib> // para srand() y rand()
 #include <iostream>
+#include <fstream>
+#include <string>
 using namespace std;
+
+// --- Moldes para Objetos (armas.txt y escudos.txt) ---
+struct DatosObjeto {
+    int id;
+    string nombre;
+    string categoria;
+    int atributo1; // Para armas: dano | Para escudos: absorcion
+    int atributo2; // Para armas: precision | Para escudos: saludMax
+    int atributo3; // Para armas: municionMax | Para escudos: peso
+};
+
+// --- Moldes para Entidades (especie.txt, personajes.txt y heroes.txt) ---
+struct DatosEntidad {
+    int id;
+    string nombre;
+    int fortaleza; // Si en el txt viene un guion, se guardará como -1
+    int dano;      // Si en el txt viene un guion, se guardará como -1
+    int salud;
+    int rapidez;
+};
+
+// --- Catálogos Globales (Bases de Datos en Memoria) ---
+inline DatosObjeto catalogoArmas[20];
+inline int totalArmas = 0;
+
+inline DatosObjeto catalogoEscudos[20];
+inline int totalEscudos = 0;
+
+inline DatosEntidad catalogoEspecies[20];
+inline int totalEspecies = 0;
+
+inline DatosEntidad catalogoPersonajes[20];
+inline int totalPersonajes = 0;
+
+inline DatosEntidad catalogoHeroes[20];
+inline int totalHeroes = 0;
+
+// Función auxiliar para limpiar las trampas de comentarios (#) y guiones (-) en los TXT
+inline int limpiarYConvertirLinea(string linea) {
+     // 1. Quitar comentarios si existe el carácter '#'
+    size_t posComentario = linea.find('#');
+    if (posComentario != string::npos) {
+        linea = linea.substr(0, posComentario);
+    }
+     // 2. Limpiar espacios en blanco o saltos de línea basura en los extremos
+    while (!linea.empty() && (linea.back() == ' ' || linea.back() == '\r' || linea.back() == '\n' || linea.back() == '\t')) {
+        linea.pop_back();
+    }
+    while (!linea.empty() && (linea.front() == ' ' || linea.front() == '\t')) {
+        linea.erase(0, 1);
+    }
+    // 3. Capturar la trampa del guion de la UCAB
+    if (linea == "-" || linea.empty()) {
+        return -1; // Retornamos -1 si tiene un guion para indicar que esta estadística no aplica
+    }
+    return stoi(linea); // Convierte la cadena limpia a entero de forma segura
+}
 
 /* ESTRUCTURAS BASICAS LINEALES */
 
@@ -32,7 +91,7 @@ struct NodoBlast{
 */
 
 // transformación de números a palabras
-string nombreBlast(int tipo) {
+inline string nombreBlast(int tipo) {
     switch(tipo) {
         case 1: return "Laser";
         case 2: return "EMP (Perforante)";
@@ -59,7 +118,7 @@ struct Operativo{
     ColaArsenal municiones;
 };
 
-void liberarPilaDefensa(PilaDefensa& pila) {
+inline void liberarPilaDefensa(PilaDefensa& pila) {
     NodoEscudo* actual = pila.tope;
     while (actual != nullptr) {
         NodoEscudo* siguiente = actual->siguiente;
@@ -69,7 +128,7 @@ void liberarPilaDefensa(PilaDefensa& pila) {
     pila.tope = nullptr;
 }
 
-void liberarColaArsenal(ColaArsenal& cola) {
+inline void liberarColaArsenal(ColaArsenal& cola) {
     NodoBlast* actual = cola.frente;
     while (actual != nullptr) {
         NodoBlast* siguiente = actual->siguiente;
@@ -80,7 +139,7 @@ void liberarColaArsenal(ColaArsenal& cola) {
     cola.final = nullptr;
 }
 
-int desencolarBlast(ColaArsenal& cola) {
+inline int desencolarBlast(ColaArsenal& cola) {
     if (cola.frente == nullptr) return 0; // No hay munición, usa arma base
 
     NodoBlast* temp = cola.frente;
@@ -95,7 +154,7 @@ int desencolarBlast(ColaArsenal& cola) {
     return tipo;
 }
 
-void destruirOperativo(Operativo* op) {
+inline void destruirOperativo(Operativo* op) {
     if (op == nullptr) return;
     liberarPilaDefensa(op->escudos);
     liberarColaArsenal(op->municiones);
@@ -104,14 +163,14 @@ void destruirOperativo(Operativo* op) {
 
 /* FUNCIONES DE GESTIÓN */
 
-void pushEscudo(PilaDefensa& pila, int vida){
+inline void pushEscudo(PilaDefensa& pila, int vida){
     NodoEscudo* nuevo = new NodoEscudo;
     nuevo->salud = vida;
     nuevo->siguiente = pila.tope;
     pila.tope = nuevo;
 }
 
-void encolarBlast(ColaArsenal& cola, int tipo){
+inline void encolarBlast(ColaArsenal& cola, int tipo){
     NodoBlast* nuevo = new NodoBlast;
     nuevo->tipoBlast = tipo;
     nuevo->siguiente = nullptr;
@@ -124,7 +183,7 @@ void encolarBlast(ColaArsenal& cola, int tipo){
     cola.final = nuevo;
 }
 
-void inspeccionarSuministrosporID(Operativo* op) {
+inline void inspeccionarSuministrosporID(Operativo* op) {
     if (op == nullptr) return;
 
     cout << "=== INVENTARIO OPERATIVO ID: " << op->ID_Clave << " ===" << endl;
@@ -266,7 +325,7 @@ NodoBTree4* crearNodo(bool hoja){
 }
 
 /* MÁS LOGICA DE LIBERACIÓN: Destrucción completa del Árbol al cerrar el programa */
-void liberarArbolBinario(NodoBTree4* nodo) {
+inline void liberarArbolBinario(NodoBTree4* nodo) {
     if (nodo == nullptr) return;
 
     // 1. Destruir recursivamente a todos los hijos primero
@@ -287,7 +346,7 @@ void liberarArbolBinario(NodoBTree4* nodo) {
     delete nodo;
 }
 
-void mostrarArbol(NodoBTree4* nodo, int nivel){
+inline void mostrarArbol(NodoBTree4* nodo, int nivel){
     if (nodo != nullptr){
         // según el nivel
         for (int j = 0; j < nivel; j++) cout << "    "; 
@@ -309,7 +368,7 @@ void mostrarArbol(NodoBTree4* nodo, int nivel){
     }
 }
 
-void dividirHijoenArbol(NodoBTree4* padre, int i, NodoBTree4* lleno){
+inline void dividirHijoenArbol(NodoBTree4* padre, int i, NodoBTree4* lleno){
     NodoBTree4* nuevoHermano = crearNodo(lleno->esHoja);
     
     // elemento 2 va al nuevo hermano
@@ -344,7 +403,7 @@ void dividirHijoenArbol(NodoBTree4* padre, int i, NodoBTree4* lleno){
     padre->cantidad_actual++;
 }
 
-void insertarenArbolNoLleno(NodoBTree4* nodo, Operativo* nuevoOp){
+inline void insertarenArbolNoLleno(NodoBTree4* nodo, Operativo* nuevoOp){
     int i = nodo->cantidad_actual - 1;
 
     if (nodo->esHoja){
@@ -376,7 +435,7 @@ void insertarenArbolNoLleno(NodoBTree4* nodo, Operativo* nuevoOp){
     }
 }
 
-void insertarenArbol(ArbolB4 &arbol, Operativo* nuevoOp){
+inline void insertarenArbol(ArbolB4 &arbol, Operativo* nuevoOp){
     if (arbol.raiz == nullptr){
         arbol.raiz = crearNodo(true);
         arbol.raiz->ocupantes[0] = nuevoOp;
@@ -403,7 +462,7 @@ void insertarenArbol(ArbolB4 &arbol, Operativo* nuevoOp){
     }
 }
 
-bool buscarOperativo(NodoBTree4* nodo, int idBusqueda, int nivel){
+inline bool buscarOperativo(NodoBTree4* nodo, int idBusqueda, int nivel){
     if (nodo == nullptr){
         cout << "ID " << idBusqueda << " no encontrado en el sistema." << endl;
         return false;
@@ -454,7 +513,7 @@ Operativo* buscarYRetornarPersonaje(NodoBTree4* nodo, int id) {
 }
 
 // borrow del arbol
-void prestarDelNodoAnterior(NodoBTree4* padre, int idx) {
+inline void prestarDelNodoAnterior(NodoBTree4* padre, int idx) {
     NodoBTree4* hijo = padre->hijos[idx];
     NodoBTree4* hermano = padre->hijos[idx - 1];
 
@@ -479,7 +538,7 @@ void prestarDelNodoAnterior(NodoBTree4* padre, int idx) {
     hermano->cantidad_actual--;
 }
 
-void prestarDelNodoSiguiente(NodoBTree4* padre, int idx) {
+inline void prestarDelNodoSiguiente(NodoBTree4* padre, int idx) {
     NodoBTree4* hijo = padre->hijos[idx];
     NodoBTree4* hermano = padre->hijos[idx + 1];
 
@@ -509,7 +568,7 @@ void prestarDelNodoSiguiente(NodoBTree4* padre, int idx) {
 }
 
 // merge del arbol
-void fusionarNodosArbol(NodoBTree4* padre, int idx) {
+inline void fusionarNodosArbol(NodoBTree4* padre, int idx) {
     NodoBTree4* hijo = padre->hijos[idx];
     NodoBTree4* hermano = padre->hijos[idx + 1];
 
@@ -536,7 +595,7 @@ void fusionarNodosArbol(NodoBTree4* padre, int idx) {
 }
 
 // VALIDACIÓN PROACTIVA: Asegura que el nodo hijo tenga suficientes ocupantes antes de descender
-void asegurarHijoSuficiente(NodoBTree4* nodo, int idx) {
+inline void asegurarHijoSuficiente(NodoBTree4* nodo, int idx) {
     if (nodo == nullptr || nodo->hijos[idx] == nullptr) return;
 
     // Si el hijo está en el mínimo absoluto de ocupantes (1 elemento)
@@ -594,7 +653,7 @@ Operativo* clonarOperativo(Operativo* original) {
 }
 
 // ALGORITMO DE ELIMINACIÓN CON REBALANCEO AUTOMÁTICO POR MUERTE
-void eliminarDelNodo(NodoBTree4* nodo, int id) {
+inline void eliminarDelNodo(NodoBTree4* nodo, int id) {
     if (nodo == nullptr) return;
 
     int idx = 0;
@@ -669,7 +728,7 @@ Operativo* buscarOperativoMuerto(NodoBTree4* nodo) {
     return nullptr;
 }
 
-void limpiarOperativosMuertos(ArbolB4& arbol) {
+inline void limpiarOperativosMuertos(ArbolB4& arbol) {
     if (arbol.raiz == nullptr) return;
 
     while (true) {
@@ -698,7 +757,7 @@ void limpiarOperativosMuertos(ArbolB4& arbol) {
 //     FUNCIONES DE COMBATE Y SIMULACIÓN
 // ==========================================
 
-void recibirDano(Operativo* op, int cantidad, int tipoBlast) {
+inline void recibirDano(Operativo* op, int cantidad, int tipoBlast) {
     if (op == nullptr || cantidad <= 0) return;
     
     cout << "  -> ID " << op->ID_Clave << " (" << (op->Bando == 1 ? "Neon" : "OMEGA") << ") recibe impacto (" << nombreBlast(tipoBlast) << ")" << endl;
@@ -778,7 +837,7 @@ Operativo* buscarEnemigoEnHijos(NodoBTree4* nodo, int bandoAtacante) {
     return target;
 }
 
-void aplicarDanoRacimo(NodoBTree4* nodo, int bandoAtacante) {
+inline void aplicarDanoRacimo(NodoBTree4* nodo, int bandoAtacante) {
     if (nodo == nullptr) return;
     cout << "    [RACIMO AoE] Aplicando 20 de daño de área..." << endl;
     // Daño en el nodo actual
@@ -821,7 +880,7 @@ struct RegistroAtaque {
     int tipoBlast;
 };
 
-void recolectarAtaques(NodoBTree4* nodo, NodoBTree4* raiz, RegistroAtaque* ataques, int& cantidadAtaques) {
+inline void recolectarAtaques(NodoBTree4* nodo, NodoBTree4* raiz, RegistroAtaque* ataques, int& cantidadAtaques) {
     if (nodo == nullptr) return;
     
     for (int i = 0; i < nodo->cantidad_actual; i++) {
@@ -867,7 +926,7 @@ void recolectarAtaques(NodoBTree4* nodo, NodoBTree4* raiz, RegistroAtaque* ataqu
     }
 }
 
-void resolverFaseCombate(ArbolB4& arbol) {
+inline void resolverFaseCombate(ArbolB4& arbol) {
     if (arbol.raiz == nullptr) return;
     
     cout << "\n=== INICIANDO FASE DE COMBATE ACTIVA ===" << endl;
@@ -936,7 +995,7 @@ void resolverFaseCombate(ArbolB4& arbol) {
     cout << "=== FIN DE LA FASE DE COMBATE ===" << endl;
 }
 
-void ejecutarAtaque(Operativo* atacante, Operativo* defensor, ArbolB4& arbol) {
+inline void ejecutarAtaque(Operativo* atacante, Operativo* defensor, ArbolB4& arbol) {
     if (atacante == nullptr || defensor == nullptr) return;
     if (atacante->HP_Base <= 0 || defensor->HP_Base <= 0) return;
 
@@ -1021,8 +1080,104 @@ void ejecutarAtaque(Operativo* atacante, Operativo* defensor, ArbolB4& arbol) {
     }
 }
 
+// Carga de info de los archivos .txt
+inline void cargarBaseDeDatosYggdrasil() {
+    string descarte;
+
+    // 1. Cargar armas.txt
+    ifstream archArmas("armas.txt");
+    if (archArmas.is_open()) {
+        archArmas >> totalArmas;
+        archArmas >> descarte; // Descartar "---"
+        for (int i = 0; i < totalArmas; i++) {
+            archArmas >> catalogoArmas[i].id;
+            archArmas.ignore();
+            getline(archArmas, catalogoArmas[i].nombre);
+            getline(archArmas, catalogoArmas[i].categoria);
+            archArmas >> catalogoArmas[i].atributo1;
+            archArmas >> catalogoArmas[i].atributo2;
+            archArmas >> catalogoArmas[i].atributo3;
+            archArmas >> descarte;
+        }
+        archArmas.close();
+    }
+
+    // 2. Cargar escudos.txt
+    ifstream archEscudos("escudos.txt");
+    if (archEscudos.is_open()) {
+        archEscudos >> totalEscudos;
+        archEscudos >> descarte;
+        for (int i = 0; i < totalEscudos; i++) {
+            archEscudos >> catalogoEscudos[i].id;
+            archEscudos.ignore();
+            getline(archEscudos, catalogoEscudos[i].nombre);
+            getline(archEscudos, catalogoEscudos[i].categoria);
+            archEscudos >> catalogoEscudos[i].atributo1;
+            archEscudos >> catalogoEscudos[i].atributo2;
+            archEscudos >> catalogoEscudos[i].atributo3;
+            archEscudos >> descarte;
+        }
+        archEscudos.close();
+    }
+
+    // 3. Cargar especie.txt
+    ifstream archEspecie("especie.txt");
+    if (archEspecie.is_open()) {
+        archEspecie >> totalEspecies;
+        archEspecie >> descarte; archEspecie.ignore();
+        for (int i = 0; i < totalEspecies; i++) {
+            string lId, lFort, lDan, lSal, lRap;
+            getline(archEspecie, lId); catalogoEspecies[i].id = limpiarYConvertirLinea(lId);
+            getline(archEspecie, catalogoEspecies[i].nombre);
+            getline(archEspecie, lFort); catalogoEspecies[i].fortaleza = limpiarYConvertirLinea(lFort);
+            getline(archEspecie, lDan); catalogoEspecies[i].dano = limpiarYConvertirLinea(lDan);
+            getline(archEspecie, lSal); catalogoEspecies[i].salud = limpiarYConvertirLinea(lSal);
+            getline(archEspecie, lRap); catalogoEspecies[i].rapidez = limpiarYConvertirLinea(lRap);
+            getline(archEspecie, descarte);
+        }
+        archEspecie.close();
+    }
+
+    // 4. Cargar personajes.txt
+    ifstream archPers("personajes.txt");
+    if (archPers.is_open()) {
+        archPers >> totalPersonajes;
+        archPers >> descarte; archPers.ignore();
+        for (int i = 0; i < totalPersonajes; i++) {
+            string lId, lFort, lDan, lSal, lRap;
+            getline(archPers, lId); catalogoPersonajes[i].id = limpiarYConvertirLinea(lId);
+            getline(archPers, catalogoPersonajes[i].nombre);
+            getline(archPers, lFort); catalogoPersonajes[i].fortaleza = limpiarYConvertirLinea(lFort);
+            getline(archPers, lDan); catalogoPersonajes[i].dano = limpiarYConvertirLinea(lDan);
+            getline(archPers, lSal); catalogoPersonajes[i].salud = limpiarYConvertirLinea(lSal);
+            getline(archPers, lRap); catalogoPersonajes[i].rapidez = limpiarYConvertirLinea(lRap);
+            getline(archPers, descarte);
+        }
+        archPers.close();
+    }
+
+    // 5. Cargar heroes.txt
+    ifstream archHeroes("heroes.txt");
+    if (archHeroes.is_open()) {
+        archHeroes >> totalHeroes;
+        archHeroes >> descarte; archHeroes.ignore();
+        for (int i = 0; i < totalHeroes; i++) {
+            string lId, lFort, lDan, lSal, lRap;
+            getline(archHeroes, lId); catalogoHeroes[i].id = limpiarYConvertirLinea(lId);
+            getline(archHeroes, catalogoHeroes[i].nombre);
+            getline(archHeroes, lFort); catalogoHeroes[i].fortaleza = limpiarYConvertirLinea(lFort);
+            getline(archHeroes, lDan); catalogoHeroes[i].dano = limpiarYConvertirLinea(lDan);
+            getline(archHeroes, lSal); catalogoHeroes[i].salud = limpiarYConvertirLinea(lSal);
+            getline(archHeroes, lRap); catalogoHeroes[i].rapidez = limpiarYConvertirLinea(lRap);
+            getline(archHeroes, descarte);
+        }
+        archHeroes.close();
+    }
+    cout << "[SISTEMA]: Catálogos globales cargados desde los 5 archivos .txt de forma exitosa." << endl;
+}
+
 // RECORRIDO FINAL DE CONTEO DE TROPAS (HECHO CON INORDEN)
-void realizarConteoFinalInOrder(NodoBTree4* nodo, int& vivosNeon, int& vivosOmega, int& totalVidaNeon, int& totalVidaOmega) {
+inline void realizarConteoFinalInOrder(NodoBTree4* nodo, int& vivosNeon, int& vivosOmega, int& totalVidaNeon, int& totalVidaOmega) {
     if (nodo == nullptr) return;
 
     for (int i = 0; i < nodo->cantidad_actual; i++) {
