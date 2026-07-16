@@ -75,6 +75,8 @@ void menu() {
     cout << "Seleccione una opcion: ";
 }
 
+Operativo* crearOperativo(int clase, int id, int bando);
+
 Operativo* generarOperativoAleatorio(int bando) {
     int clase = rand() % 3 + 1;
     int id = 0;
@@ -91,6 +93,12 @@ Operativo* generarOperativoAleatorio(int bando) {
 }
 
 void ejecutarSimulacion(ArbolB4& arbol) {
+    if (arbol.raiz != nullptr) {
+        cout << "\n[SISTEMA]: Reiniciando red cuántica... Liberando estructuras previas." << endl;
+        liberarArbolBinario(arbol.raiz);
+        arbol.raiz = nullptr; // Reseteo limpio de la memoria HEAP
+    }
+    
     cout << "\n=============================================" << endl;
     cout << "     SIMULADOR AUTOMATICO YGGDRASIL  " << endl;
     cout << "     (MODO AUTOMATICO: 10 TURNOS CON DADO)" << endl;
@@ -197,11 +205,54 @@ void ejecutarSimulacion(ArbolB4& arbol) {
     cout << "=============================================" << endl;
 }
 
+void poblarArbolConCatálogos(ArbolB4& arbol) {
+    // 1. Inyectar los personajes normales de personajes.txt al Bando 1 (Neón)
+    for (int i = 0; i < totalPersonajes; i++) {
+        int clase = 1; // Juggernaut por defecto
+        // Blindaje: si tiene una salud baja característica (80) o rapidez alta, es Espectro (Hacker)
+        if (catalogoPersonajes[i].salud == 80 || catalogoPersonajes[i].id == 1) {
+            clase = 3; // El Hacker de Combate es clase 3 (Espectro)
+        } 
+        // Si no aplica fortaleza (-1), es un enemigo atacante puro (Ejecutor/Asesino)
+        else if (catalogoPersonajes[i].fortaleza == -1) {
+            clase = 2; // Si no tiene fortaleza, es un enemigo (Ejecutor/Asesino)
+        }
+
+        Operativo* op = crearOperativo(clase, catalogoPersonajes[i].id, 1);
+        op->HP_Base = catalogoPersonajes[i].salud; // Usar su salud real del archivo
+        insertarenArbol(arbol, op);
+    }
+    // 2. Inyectar los héroes de heroes.txt al Bando 2 (OMEGA)
+    for (int i = 0; i < totalHeroes; i++) {
+        int clase = 2; // Ejecutor/Asesino por defecto para héroes equilibrados
+        // Blindaje lúdico: si su fortaleza es muy alta, es Tanque (Juggernaut)
+        if (catalogoHeroes[i].fortaleza > 150) {
+            clase = 1; 
+        } 
+        // Si tiene el nombre "Oráculo de Datos" o su ID original en el archivo es 4, es Hacker
+        else if (catalogoHeroes[i].id == 4 || catalogoHeroes[i].nombre.find("Oráculo") != string::npos) { // Oráculo de Datos es Hacker
+            clase = 3; 
+        }
+        // Le sumamos un offset (+100) para que OMEGA no choque IDs con Neón
+        Operativo* op = crearOperativo(clase, catalogoHeroes[i].id + 100, 2);
+        op->HP_Base = catalogoHeroes[i].salud; // Usar su salud real del archivo
+        insertarenArbol(arbol, op);
+    }
+    cout << "[YGGDRASIL]: Estructura balanceada e inyectada con unidades de los archivos." << endl;
+}
+
 int main() {
     srand(time(0)); // para evitar lanzadas de dados consistentes
     ArbolB4 yggdrasil;
+    
+    // ==========================================
+    // LECTURA ANTES DEL JUEGO (Mapeo de los 5 TXT)
+    // ==========================================
+    cout << "[SISTEMA] Conectando con los archivos de red cuántica..." << endl;
+    cargarBaseDeDatosYggdrasil(); // 1. Lee los 5 archivos planos y llena las matrices
+    poblarArbolConCatálogos(yggdrasil); // 2. Transfiere esos datos a nodos reales de tu Árbol B-4
+    
     int opcion, clase, id, bando;
-
     do {
         menu();
         cin >> opcion;
