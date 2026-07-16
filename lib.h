@@ -1176,6 +1176,19 @@ inline void cargarBaseDeDatosYggdrasil() {
     cout << "[SISTEMA]: Catálogos globales cargados desde los 5 archivos .txt de forma exitosa." << endl;
 }
 
+// Función auxiliar para contar operativos vivos por bando en un turno dado
+inline void contarVivosEnTurno(NodoBTree4* nodo, int& neon, int& omega) {
+    if (nodo == nullptr) return;
+    for (int i = 0; i < nodo->cantidad_actual; i++) {
+        if (!nodo->esHoja) contarVivosEnTurno(nodo->hijos[i], neon, omega);
+        if (nodo->ocupantes[i] != nullptr && nodo->ocupantes[i]->HP_Base > 0) {
+            if (nodo->ocupantes[i]->Bando == 1) neon++;
+            else if (nodo->ocupantes[i]->Bando == 2) omega++;
+        }
+    }
+    if (!nodo->esHoja) contarVivosEnTurno(nodo->hijos[nodo->cantidad_actual], neon, omega);
+}
+
 // RECORRIDO FINAL DE CONTEO DE TROPAS (HECHO CON INORDEN)
 inline void realizarConteoFinalInOrder(NodoBTree4* nodo, int& vivosNeon, int& vivosOmega, int& totalVidaNeon, int& totalVidaOmega) {
     if (nodo == nullptr) return;
