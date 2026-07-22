@@ -69,7 +69,7 @@ void menu() {
     cout << "4. Inspeccionar Suministros por ID" << endl;
     cout << "5. Dar de baja / Extirpar Operativo" << endl;
     cout << "6. Ejecutar Banco de Pruebas Automatico" << endl;
-    cout << "7. Ejecutar Simulacion Automática (10 Turnos)" << endl;
+    cout << "7. Ejecutar Simulacion Manual (10 Turnos)" << endl;
     cout << "0. Salir" << endl;
     cout << "========================================" << endl;
     cout << "Seleccione una opcion: ";
@@ -92,66 +92,75 @@ Operativo* generarOperativoAleatorio(int bando) {
     return crearOperativo(clase, id, bando);
 }
 
-void ejecutarSimulacion(ArbolB4& arbol) {
+void ejecutarSimulacionManualConDado(ArbolB4& arbol) {
     if (arbol.raiz != nullptr) {
         cout << "\n[SISTEMA]: Reiniciando red cuántica... Liberando estructuras previas." << endl;
         liberarArbolBinario(arbol.raiz);
-        arbol.raiz = nullptr; // Reseteo limpio de la memoria HEAP
+        arbol.raiz = nullptr;
     }
     
     cout << "\n=============================================" << endl;
-    cout << "     SIMULADOR AUTOMATICO YGGDRASIL  " << endl;
-    cout << "     (MODO AUTOMATICO: 10 TURNOS CON DADO)" << endl;
+    cout << "     SIMULADOR INTERACTIVO YGGDRASIL         " << endl;
+    cout << "     (MODO MANUAL POR TURNOS CON DADO)       " << endl;
     cout << "=============================================" << endl;
     
-    cin.ignore(10000, '\n');
     int turnosTotales = 10;
     int totalInyectados = 0;
-    // Variables para el dominio de la raíz
-    int bandoControlRaizActual = 0; // 0 = Nadie, 1 = Neon, 2 = OMEGA
+    int bandoControlRaizActual = 0;
     int turnosConsecutivosRaiz = 0;
     bool victoriaPorDominioRaiz = false;
     string faccionDominanteRaiz = "";
     
     for (int t = 1; t <= turnosTotales; t++) {
-        int bando = (t % 2 == 1) ? 1 : 2; // Turno impar = Neon (1), par = OMEGA (2)
-        string nombreBando = (bando == 1) ? "Neon (N)" : "OMEGA (O)";
+        int bando = (t % 2 == 1) ? 1 : 2;
+        string nombreBando = (bando == 1) ? "Neón (N)" : "OMEGA (O)";
         
         cout << "\n=============================================" << endl;
         cout << "TURNO " << t << ": Equipo " << nombreBando << endl;
         cout << "=============================================" << endl;
         
+        // --- AQUÍ SE APLICA EL DADO ---
         int dado = rand() % 3 + 1;
-        cout << "[PASO 1] Tirada de dado de inyeccion: " << dado << endl;
+        cout << "[PASO 1] Tirada de dado de inyección: " << dado << endl;
+        cout << "  -> El equipo " << nombreBando << " debe inyectar " << dado << " operativo(s) este turno." << endl;
         
+        // --- PASO 2: INYECCIÓN MANUAL SEGÚN EL RESULTADO DEL DADO ---
         for (int i = 0; i < dado; i++) {
             if (totalInyectados >= 60) {
-                cout << "[LIMITE DE PARTIDA] Se ha alcanzado el maximo de 60 inyecciones globales." << endl;
+                cout << "[LÍMITE DE PARTIDA] Se alcanzó el máximo de 60 inyecciones globales." << endl;
                 break;
             }
             
-            Operativo* nuevoOp = generarOperativoAleatorio(bando);
+            int idOp, claseOp;
+            cout << "\n  --- Inyección " << (i + 1) << " de " << dado << " (Manual) ---" << endl;
+            cout << "  Ingrese ID del Operativo: ";
+            cin >> idOp;
             
-            if (nuevoOp != nullptr) {
-                cout << "\n[PASO 2 y 3] Intentando inyectar Operativo ID " << nuevoOp->ID_Clave 
-                     << " (Clase: " << nuevoOp->Clase << ", Bando: " << (nuevoOp->Bando == 1 ? "Neon" : "OMEGA") << ")" << endl;
+            if (buscarYRetornarPersonaje(arbol.raiz, idOp) != nullptr) {
+                cout << "  -> [ERROR] El ID " << idOp << " ya existe en la red. Inyección fallida (se pierde el intento)." << endl;
+            } else {
+                cout << "  Seleccione Clase (1: Juggernaut/Tanque | 2: Ejecutor/Asesino | 3: Espectro/Hacker): ";
+                cin >> claseOp;
+                if (claseOp < 1 || claseOp > 3) claseOp = 1; // Valor por defecto
                 
-                if (buscarYRetornarPersonaje(arbol.raiz, nuevoOp->ID_Clave) != nullptr) {
-                    cout << "  -> [ERROR] El ID " << nuevoOp->ID_Clave << " ya existe en la estructura. Inyeccion fallida." << endl;
-                    destruirOperativo(nuevoOp);
-                } else {
-                    insertarenArbol(arbol, nuevoOp);
-                    cout << "  -> [EXITO] Operativo inyectado." << endl;
-                    totalInyectados++;
-                }
+                Operativo* nuevoOp = crearOperativo(claseOp, idOp, bando);
+                insertarenArbol(arbol, nuevoOp);
+                cout << "  -> [ÉXITO] Operativo ID " << idOp << " inyectado en el árbol." << endl;
+                totalInyectados++;
             }
         }
         
-        cout << "\n[ESTADO DEL ARBOL TRAS INYECCIONES]:" << endl;
+        cout << "\n[ESTADO DEL ÁRBOL TRAS INYECCIONES]:" << endl;
         mostrarArbol(arbol.raiz, 0);
+        
+        // --- PASO 3: FASE DE COMBATE AUTOMÁTICA DEL TURNO ---
+        cout << "\nPresione ENTER para ejecutar la Fase de Combate...";
+        cin.ignore(10000, '\n');
+        cin.get();
         
         resolverFaseCombate(arbol);
         
+        // Colapso de Raíz por bajas masivas
         if (arbol.raiz != nullptr && arbol.raiz->cantidad_actual == 0) {
             NodoBTree4* viejaRaiz = arbol.raiz;
             if (arbol.raiz->esHoja) {
@@ -160,10 +169,10 @@ void ejecutarSimulacion(ArbolB4& arbol) {
                 arbol.raiz = arbol.raiz->hijos[0];
             }
             delete viejaRaiz;
-            cout << "\n\t[SISTEMA - ALERTA CRITICA]: Toda la red Yggdrasil ha colapsado por bajas masivas." << endl;
+            cout << "\n\t[ALERTA CRÍTICA]: Toda la red Yggdrasil ha colapsado por bajas masivas." << endl;
         }
         
-        // --- VALIDACIÓN DE CONDICIÓN 1: ANIQUILACIÓN ---
+        // --- CONDICIÓN 1: ANIQUILACIÓN ---
         int neonVivos = 0, omegaVivos = 0;
         contarVivosEnTurno(arbol.raiz, neonVivos, omegaVivos);
         if (t > 1 && (neonVivos == 0 || omegaVivos == 0)) {
@@ -174,7 +183,7 @@ void ejecutarSimulacion(ArbolB4& arbol) {
             break; 
         }
 
-        // --- VALIDACIÓN DE CONDICIÓN 2: DOMINIO DE LA RAÍZ ---
+        // --- CONDICIÓN 2: DOMINIO DE LA RAÍZ ---
         if (arbol.raiz != nullptr && arbol.raiz->cantidad_actual > 0) {
             int bandoRaizPrimerElemento = arbol.raiz->ocupantes[0]->Bando;
             bool raizExclusiva = true;
@@ -187,13 +196,11 @@ void ejecutarSimulacion(ArbolB4& arbol) {
             if (raizExclusiva) {
                 if (bandoControlRaizActual == bandoRaizPrimerElemento) {
                     turnosConsecutivosRaiz++;
-                } 
-                else {
+                } else {
                     bandoControlRaizActual = bandoRaizPrimerElemento;
                     turnosConsecutivosRaiz = 1;
                 }
-            } 
-            else {
+            } else {
                 bandoControlRaizActual = 0;
                 turnosConsecutivosRaiz = 0;
             }
@@ -212,7 +219,6 @@ void ejecutarSimulacion(ArbolB4& arbol) {
         
         if (t < turnosTotales) {
             cout << "\nPresione ENTER para avanzar al Turno " << (t + 1) << "...";
-            cin.clear();
             cin.get();
         }
     }
@@ -223,17 +229,17 @@ void ejecutarSimulacion(ArbolB4& arbol) {
         return;
     }
 
+    // RECORRIDO Y CONTEO FINAL
     cout << "\n=============================================" << endl;
-    cout << "     SIMULACION COMPLETADA. TOTAL INYECTADOS: " << totalInyectados << endl;
+    cout << "     SIMULACIÓN COMPLETADA" << endl;
     cout << "=============================================" << endl;
 
-    // RECORRIDO Y CONTEO FINAL DE TROPAS
     int vivosNeon = 0, vivosOmega = 0;
     int totalVidaNeon = 0, totalVidaOmega = 0;
 
     cout << "\n>>> INICIANDO RECORRIDO CUÁNTICO FINAL <<<" << endl;
     if (arbol.raiz == nullptr) {
-        cout << "No quedó ningún operativo en pie. La red colapsó por mutua destrucción." << endl;
+        cout << "No quedó ningún operativo en pie. La red colapsó." << endl;
     } else {
         realizarConteoFinalInOrder(arbol.raiz, vivosNeon, vivosOmega, totalVidaNeon, totalVidaOmega);
     }
@@ -241,43 +247,30 @@ void ejecutarSimulacion(ArbolB4& arbol) {
     cout << "\n=============================================" << endl;
     cout << "          REPORTE DE DAÑOS FINALES" << endl;
     cout << "=============================================" << endl;
-    cout << "  RESISTENCIA NEÓN:  " << vivosNeon << " operativos vivos. HP Total: " << totalVidaNeon << endl;
-    cout << "  CORPORACIÓN OMEGA: " << vivosOmega << " operativos vivos. HP Total: " << totalVidaOmega << endl;
+    cout << "  RESISTENCIA NEÓN:  " << vivosNeon << " vivos. HP Total: " << totalVidaNeon << endl;
+    cout << "  CORPORACIÓN OMEGA: " << vivosOmega << " vivos. HP Total: " << totalVidaOmega << endl;
     cout << "=============================================" << endl;
 
-    // Determinar la facción dominante
     if (vivosNeon > vivosOmega) {
-        cout << "¡VICTORIA PARA LA RESISTENCIA NEÓN! El núcleo ha sido liberado." << endl;
-    } 
-    else if (vivosOmega > vivosNeon) {
-        cout << "¡VICTORIA PARA LA CORPORACIÓN OMEGA! El sistema ha sido privatizado." << endl;
-    } 
-    else {
-        cout << "EMPATE EN OPERATIVOS VIVOS. Aplicando criterio de desempate por ID de la Raíz..." << endl;
-        int idMaxNeonRaiz = -1;
-        int idMaxOmegaRaiz = -1;
-
+        cout << "¡VICTORIA PARA LA RESISTENCIA NEÓN!" << endl;
+    } else if (vivosOmega > vivosNeon) {
+        cout << "¡VICTORIA PARA LA CORPORACIÓN OMEGA!" << endl;
+    } else {
+        cout << "EMPATE EN OPERATIVOS. Evaluando ID de la Raíz..." << endl;
+        int idMaxNeonRaiz = -1, idMaxOmegaRaiz = -1;
         if (arbol.raiz != nullptr) {
             for (int i = 0; i < arbol.raiz->cantidad_actual; i++) {
                 if (arbol.raiz->ocupantes[i] != nullptr && arbol.raiz->ocupantes[i]->HP_Base > 0) {
-                    if (arbol.raiz->ocupantes[i]->Bando == 1) {
-                        if (arbol.raiz->ocupantes[i]->ID_Clave > idMaxNeonRaiz)
-                            idMaxNeonRaiz = arbol.raiz->ocupantes[i]->ID_Clave;
-                    } else if (arbol.raiz->ocupantes[i]->Bando == 2) {
-                        if (arbol.raiz->ocupantes[i]->ID_Clave > idMaxOmegaRaiz)
-                            idMaxOmegaRaiz = arbol.raiz->ocupantes[i]->ID_Clave;
-                    }
+                    if (arbol.raiz->ocupantes[i]->Bando == 1 && arbol.raiz->ocupantes[i]->ID_Clave > idMaxNeonRaiz)
+                        idMaxNeonRaiz = arbol.raiz->ocupantes[i]->ID_Clave;
+                    else if (arbol.raiz->ocupantes[i]->Bando == 2 && arbol.raiz->ocupantes[i]->ID_Clave > idMaxOmegaRaiz)
+                        idMaxOmegaRaiz = arbol.raiz->ocupantes[i]->ID_Clave;
                 }
             }
         }
-
-        if (idMaxNeonRaiz > idMaxOmegaRaiz) {
-            cout << "¡VICTORIA PARA LA RESISTENCIA NEÓN! Unidad de mayor ID en la raíz detectada (" << idMaxNeonRaiz << ")." << endl;
-        } else if (idMaxOmegaRaiz > idMaxNeonRaiz) {
-            cout << "¡VICTORIA PARA LA CORPORACIÓN OMEGA! Unidad de mayor ID en la raíz detectada (" << idMaxOmegaRaiz << ")." << endl;
-        } else {
-            cout << "EMPATE ABSOLUTO. Yggdrasil se encuentra atrapado en un bucle infinito." << endl;
-        }
+        if (idMaxNeonRaiz > idMaxOmegaRaiz) cout << "¡VICTORIA PARA LA RESISTENCIA NEÓN por ID en Raíz (" << idMaxNeonRaiz << ")!" << endl;
+        else if (idMaxOmegaRaiz > idMaxNeonRaiz) cout << "¡VICTORIA PARA LA CORPORACIÓN OMEGA por ID en Raíz (" << idMaxOmegaRaiz << ")!" << endl;
+        else cout << "EMPATE ABSOLUTO." << endl;
     }
     liberarArbolBinario(arbol.raiz);
     arbol.raiz = nullptr; // se libera la memoria para evitar acumulaciones innecesarias
@@ -440,7 +433,7 @@ int main() {
                 break;
 
             case 7:
-                ejecutarSimulacion(yggdrasil);
+                ejecutarSimulacionManual(yggdrasil);
                 break;
 
             case 0:
